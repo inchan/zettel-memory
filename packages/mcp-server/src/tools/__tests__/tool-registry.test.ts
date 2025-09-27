@@ -1,5 +1,5 @@
 import { ErrorCode } from "@memory-mcp/common";
-import { executeTool, listTools, type ToolExecutionContext } from "..";
+import { executeTool, listTools, ToolExecutionContext } from "..";
 
 function createTestContext(): ToolExecutionContext {
   return {

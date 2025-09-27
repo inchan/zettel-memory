@@ -8,6 +8,8 @@
 import { Command } from "commander";
 import { logger } from "@memory-mcp/common";
 import { startServer, type MemoryMcpServerOptions } from "./server.js";
+import * as fs from "fs/promises";
+import * as path from "path";
 
 const program = new Command();
 
@@ -117,13 +119,96 @@ program
   .action(async (options) => {
     logger.info("시스템 헬스체크 중...");
 
-    // TODO: 실제 헬스체크 로직 구현
-    console.log("✅ Memory MCP Server 상태: 정상");
-    console.log(`✅ 볼트 경로: ${options.vault}`);
-    console.log(`✅ 인덱스 경로: ${options.index}`);
-    console.log("✅ 의존성: 모두 로드됨");
+    let hasErrors = false;
+    const results: Array<{ status: "✅" | "❌"; message: string }> = [];
 
-    logger.info("헬스체크 완료");
+    try {
+      // 1. 볼트 디렉토리 검증
+      const vaultPath = path.resolve(options.vault);
+      try {
+        const vaultStat = await fs.stat(vaultPath);
+        if (vaultStat.isDirectory()) {
+          results.push({ status: "✅", message: `볼트 경로: ${vaultPath}` });
+
+          // PARA 디렉토리 구조 검증
+          const paraCategories = ["Projects", "Areas", "Resources", "Archives"];
+          for (const category of paraCategories) {
+            const categoryPath = path.join(vaultPath, category);
+            try {
+              await fs.access(categoryPath);
+              results.push({ status: "✅", message: `PARA 카테고리: ${category}` });
+            } catch {
+              results.push({ status: "❌", message: `PARA 카테고리 누락: ${category}` });
+              hasErrors = true;
+            }
+          }
+        } else {
+          results.push({ status: "❌", message: `볼트 경로가 디렉토리가 아닙니다: ${vaultPath}` });
+          hasErrors = true;
+        }
+      } catch (error) {
+        results.push({ status: "❌", message: `볼트 경로에 액세스할 수 없습니다: ${vaultPath}` });
+        hasErrors = true;
+      }
+
+      // 2. 인덱스 파일 검증
+      const indexPath = path.resolve(options.index);
+      try {
+        await fs.access(indexPath);
+        const indexStat = await fs.stat(indexPath);
+        if (indexStat.isFile()) {
+          results.push({ status: "✅", message: `인덱스 파일: ${indexPath} (${Math.round(indexStat.size / 1024)}KB)` });
+        } else {
+          results.push({ status: "❌", message: `인덱스 경로가 파일이 아닙니다: ${indexPath}` });
+          hasErrors = true;
+        }
+      } catch (error) {
+        results.push({ status: "❌", message: `인덱스 파일에 액세스할 수 없습니다: ${indexPath} (새로 생성될 예정)` });
+        // 인덱스 파일이 없는 것은 경고이지 에러는 아님
+      }
+
+      // 3. 의존성 검증
+      try {
+        await import("@memory-mcp/storage-md");
+        await import("@memory-mcp/index-search");
+        await import("@memory-mcp/assoc-engine");
+        results.push({ status: "✅", message: "의존성: 모든 패키지 로드 완료" });
+      } catch (error) {
+        results.push({ status: "❌", message: `의존성 로드 실패: ${error instanceof Error ? error.message : String(error)}` });
+        hasErrors = true;
+      }
+
+      // 4. 권한 검증
+      try {
+        const testFile = path.join(vaultPath, ".healthcheck-test");
+        await fs.writeFile(testFile, "test");
+        await fs.unlink(testFile);
+        results.push({ status: "✅", message: "파일 시스템 권한: 읽기/쓰기 가능" });
+      } catch (error) {
+        results.push({ status: "❌", message: "파일 시스템 권한: 쓰기 권한 없음" });
+        hasErrors = true;
+      }
+
+      // 결과 출력
+      console.log("\n=== Memory MCP Server 헬스체크 결과 ===");
+      for (const result of results) {
+        console.log(`${result.status} ${result.message}`);
+      }
+
+      if (hasErrors) {
+        console.log("\n❌ 일부 검증에 실패했습니다. 위 내용을 확인해주세요.");
+        logger.error("헬스체크 실패");
+        process.exit(1);
+      } else {
+        console.log("\n✅ 모든 검증이 완료되었습니다. Memory MCP Server를 사용할 준비가 되었습니다.");
+        logger.info("헬스체크 완료");
+      }
+
+    } catch (error) {
+      logger.error("헬스체크 중 예기치 못한 오류 발생", { error: error instanceof Error ? error.message : String(error) });
+      console.log("❌ 헬스체크 중 예기치 못한 오류가 발생했습니다.");
+      process.exit(1);
+    }
   });
 
 /**
