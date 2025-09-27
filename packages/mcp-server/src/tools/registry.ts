@@ -27,19 +27,68 @@ import {
   type ToolExecutionContext,
   type ToolResult,
 } from "./types.js";
-import { DEFAULT_EXECUTION_POLICY, withExecutionPolicy, type ExecutionPolicyOptions } from "./execution-policy.js";
+import {
+  DEFAULT_EXECUTION_POLICY,
+  withExecutionPolicy,
+  type ExecutionPolicyOptions,
+} from "./execution-policy.js";
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
-// 글로벌 검색 엔진 인스턴스 (싱글톤)
-let searchEngineInstance: SearchEngine | null = null;
+// 검색 엔진 인스턴스 캐시 (indexPath 기준)
+const searchEngineCache = new Map<string, SearchEngine>();
+let searchEngineFactory: (indexPath: string) => SearchEngine =
+  createDefaultSearchEngine;
+
+function resolveIndexPath(context: ToolExecutionContext): string {
+  const rawIndexPath = context.indexPath?.trim();
+  if (!rawIndexPath) {
+    return path.join(context.vaultPath, ".memory-index.db");
+  }
+
+  if (path.isAbsolute(rawIndexPath)) {
+    return rawIndexPath;
+  }
+
+  return path.resolve(context.vaultPath, rawIndexPath);
+}
 
 function getSearchEngine(context: ToolExecutionContext): SearchEngine {
-  if (!searchEngineInstance) {
-    const indexPath = path.join(context.vaultPath, '.memory-index.db');
-    searchEngineInstance = createDefaultSearchEngine(indexPath);
+  const resolvedIndexPath = resolveIndexPath(context);
+  const cached = searchEngineCache.get(resolvedIndexPath);
+
+  if (cached) {
+    return cached;
   }
-  return searchEngineInstance;
+
+  const engine = searchEngineFactory(resolvedIndexPath);
+  searchEngineCache.set(resolvedIndexPath, engine);
+  return engine;
+}
+
+export function resetToolRegistryForTests(): void {
+  searchEngineCache.clear();
+  searchEngineFactory = createDefaultSearchEngine;
+}
+
+export function getCachedSearchEnginePathsForTests(): string[] {
+  return Array.from(searchEngineCache.keys());
+}
+
+export function resolveIndexPathForTests(context: ToolExecutionContext): string {
+  return resolveIndexPath(context);
+}
+
+export function getSearchEngineForTests(
+  context: ToolExecutionContext
+): SearchEngine {
+  return getSearchEngine(context);
+}
+
+export function setSearchEngineFactoryForTests(
+  factory?: (indexPath: string) => SearchEngine
+): void {
+  searchEngineFactory = factory ?? createDefaultSearchEngine;
 }
 
 const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
