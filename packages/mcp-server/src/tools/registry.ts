@@ -3,15 +3,12 @@ import {
   MemoryMcpError,
   maskSensitiveInfo,
   type LogLevel,
-} from "@memory-mcp/common";
-import {
-  createNewNote,
-  saveNote,
-} from "@memory-mcp/storage-md";
+} from '@memory-mcp/common';
+import { createNewNote, saveNote } from '@memory-mcp/storage-md';
 import {
   createDefaultSearchEngine,
   SearchEngine,
-} from "@memory-mcp/index-search";
+} from '@memory-mcp/index-search';
 import {
   AssociationEngine,
   SessionContextManager,
@@ -19,9 +16,9 @@ import {
   type AssociationRequestInput,
   type SessionContextCommandInput,
   type ReflectionToolRequestInput,
-} from "@memory-mcp/assoc-engine";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import * as path from "path";
+} from '@memory-mcp/assoc-engine';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import * as path from 'path';
 import {
   AssociationRequestSchema,
   CreateNoteInputSchema,
@@ -32,17 +29,17 @@ import {
   ToolNameSchema,
   type CreateNoteInput,
   type SearchMemoryInput,
-} from "./schemas.js";
+} from './schemas.js';
 import {
   type ToolDefinition,
   type ToolExecutionContext,
   type ToolResult,
-} from "./types.js";
+} from './types.js';
 import {
   DEFAULT_EXECUTION_POLICY,
   withExecutionPolicy,
   type ExecutionPolicyOptions,
-} from "./execution-policy.js";
+} from './execution-policy.js';
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
@@ -54,9 +51,7 @@ function logToolEvent(
   metadata?: Record<string, unknown>,
   event?: string
 ): void {
-  const payload = event
-    ? { event, ...(metadata ?? {}) }
-    : metadata;
+  const payload = event ? { event, ...(metadata ?? {}) } : metadata;
 
   if (payload && Object.keys(payload).length > 0) {
     context.logger[level](`[tool:${tool}] ${message}`, payload);
@@ -68,7 +63,7 @@ function logToolEvent(
 // 검색 엔진 인스턴스 캐시 (indexPath 기준)
 const searchEngineCache = new Map<string, SearchEngine>();
 const associationEngineCache = new Map<string, AssociationEngine>();
-let searchEngineFactory: (indexPath: string) => SearchEngine =
+let searchEngineFactory: (_indexPath: string) => SearchEngine =
   createDefaultSearchEngine;
 const sessionContextManager = new SessionContextManager();
 const reflectionEngine = new ReflectionEngine();
@@ -76,7 +71,7 @@ const reflectionEngine = new ReflectionEngine();
 function resolveIndexPath(context: ToolExecutionContext): string {
   const rawIndexPath = context.indexPath?.trim();
   if (!rawIndexPath) {
-    return path.join(context.vaultPath, ".memory-index.db");
+    return path.join(context.vaultPath, '.memory-index.db');
   }
 
   if (path.isAbsolute(rawIndexPath)) {
@@ -99,7 +94,9 @@ function getSearchEngine(context: ToolExecutionContext): SearchEngine {
   return engine;
 }
 
-function getAssociationEngine(context: ToolExecutionContext): AssociationEngine {
+function getAssociationEngine(
+  context: ToolExecutionContext
+): AssociationEngine {
   const resolvedIndexPath = resolveIndexPath(context);
   const cached = associationEngineCache.get(resolvedIndexPath);
 
@@ -109,7 +106,10 @@ function getAssociationEngine(context: ToolExecutionContext): AssociationEngine 
 
   const searchEngine = getSearchEngine(context);
   const timeoutMs = Math.min(
-    Math.max(100, context.policy.timeoutMs ?? DEFAULT_EXECUTION_POLICY.timeoutMs),
+    Math.max(
+      100,
+      context.policy.timeoutMs ?? DEFAULT_EXECUTION_POLICY.timeoutMs
+    ),
     1_000
   );
   const engine = new AssociationEngine(searchEngine, {
@@ -130,7 +130,9 @@ export function getCachedSearchEnginePathsForTests(): string[] {
   return Array.from(searchEngineCache.keys());
 }
 
-export function resolveIndexPathForTests(context: ToolExecutionContext): string {
+export function resolveIndexPathForTests(
+  context: ToolExecutionContext
+): string {
   return resolveIndexPath(context);
 }
 
@@ -141,7 +143,7 @@ export function getSearchEngineForTests(
 }
 
 export function setSearchEngineFactoryForTests(
-  factory?: (indexPath: string) => SearchEngine
+  factory?: (_indexPath: string) => SearchEngine
 ): void {
   searchEngineFactory = factory ?? createDefaultSearchEngine;
   searchEngineCache.clear();
@@ -149,26 +151,30 @@ export function setSearchEngineFactoryForTests(
 }
 
 const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
-  name: "search_memory",
-  description: "메모리 볼트에서 키워드를 검색합니다. FTS 및 링크 그래프 기반 하이브리드 검색을 지원합니다.",
+  name: 'search_memory',
+  description:
+    '메모리 볼트에서 키워드를 검색합니다. FTS 및 링크 그래프 기반 하이브리드 검색을 지원합니다.',
   schema: SearchMemoryInputSchema,
-  async handler(input: SearchMemoryInput, context: ToolExecutionContext): Promise<ToolResult> {
+  async handler(
+    input: SearchMemoryInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
     const { query, limit = 10, category, tags = [] } = input;
     const maskedQuery = maskSensitiveInfo(query);
     const normalizedTags = tags.length > 0 ? tags : undefined;
 
     logToolEvent(
       context,
-      "info",
-      "search_memory",
-      "검색 요청 수신",
+      'info',
+      'search_memory',
+      '검색 요청 수신',
       {
         query: maskedQuery,
         limit,
         category: category ?? null,
         tags: normalizedTags ?? [],
       },
-      "search_memory"
+      'search_memory'
     );
 
     try {
@@ -181,7 +187,7 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
         category,
         tags: normalizedTags,
         snippetLength: 200,
-        highlightTag: "mark",
+        highlightTag: 'mark',
       };
 
       // 하이브리드 검색 실행
@@ -189,16 +195,16 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
 
       logToolEvent(
         context,
-        "info",
-        "search_memory",
-        "검색 완료",
+        'info',
+        'search_memory',
+        '검색 완료',
         {
           query: maskedQuery,
           resultsCount: searchResult.results.length,
           totalCount: searchResult.totalCount,
           timeMs: searchResult.metrics.totalTimeMs,
         },
-        "search_memory.success"
+        'search_memory.success'
       );
 
       // 검색 결과가 없는 경우
@@ -206,8 +212,8 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
         return {
           content: [
             {
-              type: "text",
-              text: `검색 결과가 없습니다.\n\n🔍 검색어: "${query}"\n📁 카테고리: ${category ?? "(전체)"}\n🏷️ 태그: ${tags.join(", ") || "(없음)"}\n⏱️ 검색 시간: ${searchResult.metrics.totalTimeMs}ms\n\n💡 검색 팁:\n- 다른 키워드를 시도해보세요\n- 카테고리나 태그 필터를 조정해보세요\n- 더 일반적인 검색어를 사용해보세요`,
+              type: 'text',
+              text: `검색 결과가 없습니다.\n\n🔍 검색어: "${query}"\n📁 카테고리: ${category ?? '(전체)'}\n🏷️ 태그: ${tags.join(', ') || '(없음)'}\n⏱️ 검색 시간: ${searchResult.metrics.totalTimeMs}ms\n\n💡 검색 팁:\n- 다른 키워드를 시도해보세요\n- 카테고리나 태그 필터를 조정해보세요\n- 더 일반적인 검색어를 사용해보세요`,
             },
           ],
           _meta: {
@@ -225,28 +231,30 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
       }
 
       // 검색 결과 포맷팅
-      const formattedResults = searchResult.results.map((result, index) => {
-        const resultText = [
-          `**${index + 1}. ${result.title}**`,
-          `📁 ${result.category} | ⭐ ${result.score.toFixed(2)}`,
-          `🔗 링크: ${result.links?.length || 0}개`,
-          `📄 ${result.filePath}`,
-          ``,
-          `${result.snippet}`,
-          ``,
-          `---`,
-        ].join('\n');
+      const formattedResults = searchResult.results
+        .map((result, index) => {
+          const resultText = [
+            `**${index + 1}. ${result.title}**`,
+            `📁 ${result.category} | ⭐ ${result.score.toFixed(2)}`,
+            `🔗 링크: ${result.links?.length || 0}개`,
+            `📄 ${result.filePath}`,
+            ``,
+            `${result.snippet}`,
+            ``,
+            `---`,
+          ].join('\n');
 
-        return resultText;
-      }).join('\n');
+          return resultText;
+        })
+        .join('\n');
 
       const summaryText = [
         `🔍 **검색 결과** (${searchResult.results.length}/${searchResult.totalCount}개)`,
         ``,
         `**검색 조건:**`,
         `- 검색어: "${query}"`,
-        `- 카테고리: ${category ?? "(전체)"}`,
-        `- 태그: ${tags.join(", ") || "(없음)"}`,
+        `- 카테고리: ${category ?? '(전체)'}`,
+        `- 태그: ${tags.join(', ') || '(없음)'}`,
         `- 검색 시간: ${searchResult.metrics.totalTimeMs}ms`,
         ``,
         `**검색 결과:**`,
@@ -257,7 +265,7 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: summaryText,
           },
         ],
@@ -281,18 +289,17 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
           },
         },
       };
-
     } catch (error) {
       logToolEvent(
         context,
-        "error",
-        "search_memory",
-        "검색 실패",
+        'error',
+        'search_memory',
+        '검색 실패',
         {
           query: maskedQuery,
           error: error instanceof Error ? error.message : String(error),
         },
-        "search_memory.failure"
+        'search_memory.failure'
       );
 
       throw new MemoryMcpError(
@@ -305,23 +312,26 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
 };
 
 const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
-  name: "create_note",
-  description: "새로운 Markdown 노트를 생성합니다.",
+  name: 'create_note',
+  description: '새로운 Markdown 노트를 생성합니다.',
   schema: CreateNoteInputSchema,
-  async handler(input: CreateNoteInput, context: ToolExecutionContext): Promise<ToolResult> {
+  async handler(
+    input: CreateNoteInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
     const maskedContent = maskSensitiveInfo(input.content);
 
     logToolEvent(
       context,
-      "info",
-      "create_note",
-      "노트 생성 요청 수신",
+      'info',
+      'create_note',
+      '노트 생성 요청 수신',
       {
         vaultPath: context.vaultPath,
         mode: context.mode,
         title: input.title,
       },
-      "create_note"
+      'create_note'
     );
 
     try {
@@ -357,21 +367,21 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
 
         logToolEvent(
           context,
-          "debug",
-          "create_note",
-          "검색 인덱스 업데이트 완료",
+          'debug',
+          'create_note',
+          '검색 인덱스 업데이트 완료',
           {
             id: note.frontMatter.id,
           },
-          "create_note.index"
+          'create_note.index'
         );
       } catch (indexError) {
         // 인덱스 실패는 경고만 기록하고 계속 진행
         logToolEvent(
           context,
-          "warn",
-          "create_note",
-          "검색 인덱스 업데이트 실패",
+          'warn',
+          'create_note',
+          '검색 인덱스 업데이트 실패',
           {
             id: note.frontMatter.id,
             error:
@@ -379,7 +389,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
                 ? indexError.message
                 : String(indexError),
           },
-          "create_note.index_failure"
+          'create_note.index_failure'
         );
       }
 
@@ -387,24 +397,24 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
 
       logToolEvent(
         context,
-        "info",
-        "create_note",
+        'info',
+        'create_note',
         `노트 생성 완료: ${noteId}`,
         {
           id: noteId,
           filePath: note.filePath,
         },
-        "create_note.success"
+        'create_note.success'
       );
 
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: `노트가 성공적으로 생성되었습니다.\nID: ${noteId}\n제목: ${input.title}\n파일 경로: ${note.filePath}\n카테고리: ${input.category}\n태그: ${
-              input.tags.join(", ") || "(없음)"
+              input.tags.join(', ') || '(없음)'
             }\n내용 미리보기: ${maskedContent.slice(0, 200)}${
-              maskedContent.length > 200 ? "..." : ""
+              maskedContent.length > 200 ? '...' : ''
             }`,
           },
         ],
@@ -423,14 +433,14 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
     } catch (error) {
       logToolEvent(
         context,
-        "error",
-        "create_note",
-        "노트 생성 실패",
+        'error',
+        'create_note',
+        '노트 생성 실패',
         {
           title: input.title,
           error: error instanceof Error ? error.message : String(error),
         },
-        "create_note.failure"
+        'create_note.failure'
       );
 
       throw new MemoryMcpError(
@@ -442,10 +452,11 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
   },
 };
 
-const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema> = {
-  name: "associate_memory",
-  description:
-    "세션 컨텍스트와 검색 기록을 활용하여 연관 노트를 추천합니다.",
+const associateMemoryDefinition: ToolDefinition<
+  typeof AssociationRequestSchema
+> = {
+  name: 'associate_memory',
+  description: '세션 컨텍스트와 검색 기록을 활용하여 연관 노트를 추천합니다.',
   schema: AssociationRequestSchema,
   async handler(
     input: AssociationRequestInput,
@@ -455,23 +466,23 @@ const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema>
 
     logToolEvent(
       context,
-      "info",
-      "associate_memory",
-      "연관 추천 요청 수신",
+      'info',
+      'associate_memory',
+      '연관 추천 요청 수신',
       {
         sessionId: input.sessionId,
         query: maskedQuery,
         limit: input.limit ?? null,
         tags: input.tags ?? [],
       },
-      "associate_memory"
+      'associate_memory'
     );
 
     try {
       const engine = getAssociationEngine(context);
       const result = await engine.generateRecommendations(input);
 
-      const focusNotes = result.recommendations.map((recommendation) => ({
+      const focusNotes = result.recommendations.map(recommendation => ({
         id: recommendation.id,
         weight: recommendation.score,
         tags: recommendation.tags,
@@ -482,11 +493,14 @@ const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema>
         reasons: recommendation.reasons,
       }));
 
-      const contextSnapshot = sessionContextManager.updateContext(input.sessionId, {
-        focusNotes,
-        tags: input.tags ?? [],
-        query: input.query,
-      });
+      const contextSnapshot = sessionContextManager.updateContext(
+        input.sessionId,
+        {
+          focusNotes,
+          tags: input.tags ?? [],
+          query: input.query,
+        }
+      );
 
       const formatted = result.recommendations
         .map((recommendation, index) => {
@@ -495,39 +509,39 @@ const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema>
             `- 점수: ${(recommendation.score * 100).toFixed(1)}`,
             `- 카테고리: ${recommendation.category}`,
             `- 경로: ${recommendation.filePath}`,
-            `- 이유: ${recommendation.reasons.join(", ")}`,
+            `- 이유: ${recommendation.reasons.join(', ')}`,
           ];
-          return details.join("\n");
+          return details.join('\n');
         })
-        .join("\n\n");
+        .join('\n\n');
 
       const summary = [
         `🔗 **연관 추천 (${result.recommendations.length}/${result.totalCandidates}개)**`,
         `세션: ${input.sessionId}`,
         `쿼리: "${input.query}"`,
-        `태그: ${(input.tags ?? []).join(", ") || "(없음)"}`,
+        `태그: ${(input.tags ?? []).join(', ') || '(없음)'}`,
         `소요 시간: ${result.metrics.tookMs}ms`,
-        "",
-        formatted || "추천할 노트를 찾지 못했습니다.",
-      ].join("\n");
+        '',
+        formatted || '추천할 노트를 찾지 못했습니다.',
+      ].join('\n');
 
       logToolEvent(
         context,
-        "info",
-        "associate_memory",
-        "연관 추천 완료",
+        'info',
+        'associate_memory',
+        '연관 추천 완료',
         {
           sessionId: input.sessionId,
           query: maskedQuery,
           recommendations: result.recommendations.length,
         },
-        "associate_memory.success"
+        'associate_memory.success'
       );
 
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: summary,
           },
         ],
@@ -544,15 +558,15 @@ const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema>
     } catch (error) {
       logToolEvent(
         context,
-        "error",
-        "associate_memory",
-        "연관 추천 실패",
+        'error',
+        'associate_memory',
+        '연관 추천 실패',
         {
           sessionId: input.sessionId,
           query: maskedQuery,
           error: error instanceof Error ? error.message : String(error),
         },
-        "associate_memory.failure"
+        'associate_memory.failure'
       );
 
       throw new MemoryMcpError(
@@ -564,9 +578,11 @@ const associateMemoryDefinition: ToolDefinition<typeof AssociationRequestSchema>
   },
 };
 
-const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchema> = {
-  name: "session_context",
-  description: "세션 컨텍스트를 조회하거나 갱신합니다.",
+const sessionContextDefinition: ToolDefinition<
+  typeof SessionContextCommandSchema
+> = {
+  name: 'session_context',
+  description: '세션 컨텍스트를 조회하거나 갱신합니다.',
   schema: SessionContextCommandSchema,
   async handler(
     input: SessionContextCommandInput,
@@ -574,22 +590,22 @@ const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchem
   ): Promise<ToolResult> {
     logToolEvent(
       context,
-      "info",
-      "session_context",
+      'info',
+      'session_context',
       `세션 컨텍스트 ${input.operation} 요청`,
       {
         sessionId: input.sessionId,
         tags: input.tags ?? [],
       },
-      "session_context"
+      'session_context'
     );
 
-    if (input.operation === "reset") {
+    if (input.operation === 'reset') {
       sessionContextManager.reset(input.sessionId);
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: `세션 컨텍스트가 초기화되었습니다. (sessionId: ${input.sessionId})`,
           },
         ],
@@ -602,28 +618,32 @@ const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchem
       };
     }
 
-    if (input.operation === "update") {
+    if (input.operation === 'update') {
       const snapshot = sessionContextManager.updateContext(input.sessionId, {
         focusNotes: input.focusNotes,
         tags: input.tags,
         query: input.query,
       });
 
-      const focusNoteSummary = snapshot.focusNotes
-        .slice(0, 5)
-        .map((note) => `- ${note.title ?? note.id} (가중치 ${note.weight.toFixed(2)})`)
-        .join("\n") || "- (없음)";
+      const focusNoteSummary =
+        snapshot.focusNotes
+          .slice(0, 5)
+          .map(
+            note =>
+              `- ${note.title ?? note.id} (가중치 ${note.weight.toFixed(2)})`
+          )
+          .join('\n') || '- (없음)';
 
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: [
               `세션 컨텍스트가 갱신되었습니다. (sessionId: ${input.sessionId})`,
-              "",
-              "최근 노트:",
+              '',
+              '최근 노트:',
               focusNoteSummary,
-            ].join("\n"),
+            ].join('\n'),
           },
         ],
         _meta: {
@@ -641,7 +661,7 @@ const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchem
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: `활성화된 세션 컨텍스트를 찾을 수 없습니다. (sessionId: ${input.sessionId})`,
           },
         ],
@@ -655,31 +675,36 @@ const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchem
       };
     }
 
-    const tags = snapshot.tags.join(", ") || "(없음)";
-    const focusNotes = snapshot.focusNotes
-      .slice(0, 5)
-      .map((note) => `- ${note.title ?? note.id} (가중치 ${note.weight.toFixed(2)})`)
-      .join("\n") || "- (없음)";
-    const queries = snapshot.queries
-      .slice(0, 5)
-      .map((entry) => `- ${entry.query}`)
-      .join("\n") || "- (없음)";
+    const tags = snapshot.tags.join(', ') || '(없음)';
+    const focusNotes =
+      snapshot.focusNotes
+        .slice(0, 5)
+        .map(
+          note =>
+            `- ${note.title ?? note.id} (가중치 ${note.weight.toFixed(2)})`
+        )
+        .join('\n') || '- (없음)';
+    const queries =
+      snapshot.queries
+        .slice(0, 5)
+        .map(entry => `- ${entry.query}`)
+        .join('\n') || '- (없음)';
 
     const summary = [
       `세션 컨텍스트 (sessionId: ${input.sessionId})`,
-      "",
+      '',
       `태그: ${tags}`,
-      "최근 노트:",
+      '최근 노트:',
       focusNotes,
-      "",
-      "최근 쿼리:",
+      '',
+      '최근 쿼리:',
       queries,
-    ].join("\n");
+    ].join('\n');
 
     return {
       content: [
         {
-          type: "text",
+          type: 'text',
           text: summary,
         },
       ],
@@ -694,13 +719,15 @@ const sessionContextDefinition: ToolDefinition<typeof SessionContextCommandSchem
   },
 };
 
-const reflectSessionDefinition: ToolDefinition<typeof ReflectionToolRequestSchema> = {
-  name: "reflect_session",
-  description: "세션 컨텍스트를 요약하여 주요 인사이트를 제공합니다.",
+const reflectSessionDefinition: ToolDefinition<
+  typeof ReflectionToolRequestSchema
+> = {
+  name: 'reflect_session',
+  description: '세션 컨텍스트를 요약하여 주요 인사이트를 제공합니다.',
   schema: ReflectionToolRequestSchema,
   async handler(
     input: ReflectionToolRequestInput,
-    context: ToolExecutionContext
+    _context: ToolExecutionContext
   ): Promise<ToolResult> {
     const snapshot = sessionContextManager.getContext(input.sessionId);
 
@@ -718,7 +745,7 @@ const reflectSessionDefinition: ToolDefinition<typeof ReflectionToolRequestSchem
 
     const reflectionInput = {
       sessionId: input.sessionId,
-      notes: prioritizedNotes.map((note) => ({
+      notes: prioritizedNotes.map(note => ({
         id: note.id,
         title: note.title ?? note.id,
         summary: note.snippet,
@@ -730,16 +757,19 @@ const reflectSessionDefinition: ToolDefinition<typeof ReflectionToolRequestSchem
 
     const reflection = reflectionEngine.buildReflection(reflectionInput);
 
-    const insightList = reflection.keyInsights
-      .map((insight, index) => `- (${index + 1}) ${insight}`)
-      .join("\n") || "- (요약 없음)";
+    const insightList =
+      reflection.keyInsights
+        .map((insight, index) => `- (${index + 1}) ${insight}`)
+        .join('\n') || '- (요약 없음)';
 
-    const text = [reflection.summary, "", "핵심 인사이트:", insightList].join("\n");
+    const text = [reflection.summary, '', '핵심 인사이트:', insightList].join(
+      '\n'
+    );
 
     return {
       content: [
         {
-          type: "text",
+          type: 'text',
           text,
         },
       ],
@@ -780,7 +810,7 @@ export function listTools(): Array<{
   description: string;
   inputSchema: JsonSchema;
 }> {
-  return toolDefinitions.map((definition) => ({
+  return toolDefinitions.map(definition => ({
     name: definition.name as ToolName,
     description: definition.description,
     inputSchema: toJsonSchema(definition),
@@ -793,39 +823,44 @@ async function executeToolWithDefinition(
   context: ToolExecutionContext,
   policy: ExecutionPolicyOptions
 ): Promise<ToolResult> {
-  const parsedInput = await definition.schema.parseAsync(rawInput).catch((error: unknown) => {
-    throw new MemoryMcpError(
-      ErrorCode.SCHEMA_VALIDATION_ERROR,
-      "툴 입력이 유효하지 않습니다.",
-      {
-        validationErrors: error instanceof Error ? error.message : error,
-        tool: definition.name,
-      }
-    );
-  });
+  const parsedInput = await definition.schema
+    .parseAsync(rawInput)
+    .catch((error: unknown) => {
+      throw new MemoryMcpError(
+        ErrorCode.SCHEMA_VALIDATION_ERROR,
+        '툴 입력이 유효하지 않습니다.',
+        {
+          validationErrors: error instanceof Error ? error.message : error,
+          tool: definition.name,
+        }
+      );
+    });
 
   const startTime = Date.now();
   logToolEvent(
     context,
-    "debug",
+    'debug',
     definition.name,
-    "실행 시작",
+    '실행 시작',
     {
       name: definition.name,
-      inputPreview: maskSensitiveInfo(JSON.stringify(parsedInput)).slice(0, 200),
+      inputPreview: maskSensitiveInfo(JSON.stringify(parsedInput)).slice(
+        0,
+        200
+      ),
     },
-    "tool.start"
+    'tool.start'
   );
 
   try {
     const result = await withExecutionPolicy<ToolResult>(
-      () => definition.handler(parsedInput as any, context),
+      () => definition.handler(parsedInput, context),
       {
         ...policy,
         onRetry: ({ attempt, error }) => {
           logToolEvent(
             context,
-            "warn",
+            'warn',
             definition.name,
             `${attempt}차 시도 실패`,
             {
@@ -833,7 +868,7 @@ async function executeToolWithDefinition(
               error: error instanceof Error ? error.message : String(error),
               name: definition.name,
             },
-            "tool.retry"
+            'tool.retry'
           );
         },
       }
@@ -842,14 +877,14 @@ async function executeToolWithDefinition(
     const duration = Date.now() - startTime;
     logToolEvent(
       context,
-      "info",
+      'info',
       definition.name,
       `실행 완료 (${duration}ms)`,
       {
         duration,
         name: definition.name,
       },
-      "tool.success"
+      'tool.success'
     );
 
     return result;
@@ -857,7 +892,7 @@ async function executeToolWithDefinition(
     const duration = Date.now() - startTime;
     logToolEvent(
       context,
-      "error",
+      'error',
       definition.name,
       `실행 실패 (${duration}ms)`,
       {
@@ -865,7 +900,7 @@ async function executeToolWithDefinition(
         name: definition.name,
         error: error instanceof Error ? error.message : String(error),
       },
-      "tool.failure"
+      'tool.failure'
     );
 
     throw error;
@@ -876,7 +911,7 @@ export async function executeTool(
   name: ToolName,
   rawInput: unknown,
   context: ToolExecutionContext,
-  overrides?: Partial<ToolExecutionContext["policy"]>
+  overrides?: Partial<ToolExecutionContext['policy']>
 ): Promise<ToolResult> {
   const parseResult = ToolNameSchema.safeParse(name);
   if (!parseResult.success) {

@@ -9,10 +9,11 @@ import {
   parseFrontMatter,
   createVaultWatcher,
   PACKAGE_VERSION,
-  GitSnapshotManager
+  GitSnapshotManager,
 } from '../index';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import * as path from 'path';
 import { promises as fs } from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -74,7 +75,9 @@ This is a test note.`;
     expect(result.frontMatter.title).toBe('Test Note');
     expect(result.frontMatter.category).toBe('Resources');
     expect(result.frontMatter.tags).toEqual(['test', 'example']);
-    expect(result.content.trim()).toBe('# Test Content\n\nThis is a test note.');
+    expect(result.content.trim()).toBe(
+      '# Test Content\n\nThis is a test note.'
+    );
   });
 
   test('노트 저장 및 로드', async () => {
@@ -100,7 +103,9 @@ This is a test note.`;
 
     // 내용 비교
     expect(loadedNote.frontMatter.title).toBe(originalNote.frontMatter.title);
-    expect(loadedNote.frontMatter.category).toBe(originalNote.frontMatter.category);
+    expect(loadedNote.frontMatter.category).toBe(
+      originalNote.frontMatter.category
+    );
     expect(loadedNote.content).toBe(originalNote.content);
     expect(loadedNote.filePath).toBe(originalNote.filePath);
   });
@@ -108,7 +113,7 @@ This is a test note.`;
   test('볼트 감시자 생성', () => {
     const watcher = createVaultWatcher(testDir, {
       debounceMs: 100,
-      recursive: true
+      recursive: true,
     });
 
     expect(watcher).toBeDefined();
@@ -142,8 +147,19 @@ describe('GitSnapshotManager', () => {
     repoDir = join(testRoot, `repo-${Date.now()}`);
     await fs.mkdir(repoDir, { recursive: true });
     await execFileAsync('git', ['init'], { cwd: repoDir });
-    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repoDir });
-    await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repoDir });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+      cwd: repoDir,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'Test User'], {
+      cwd: repoDir,
+    });
+
+    // 초기 커밋 생성
+    await fs.writeFile(join(repoDir, '.gitkeep'), '');
+    await execFileAsync('git', ['add', '.gitkeep'], { cwd: repoDir });
+    await execFileAsync('git', ['commit', '-m', 'initial commit'], {
+      cwd: repoDir,
+    });
   });
 
   afterAll(async () => {
@@ -157,12 +173,12 @@ describe('GitSnapshotManager', () => {
   test('파일 변경을 스냅샷 커밋으로 기록', async () => {
     const manager = new GitSnapshotManager(repoDir, {
       mode: 'commit',
-      commitMessageTemplate: 'snapshot: {count} files'
+      commitMessageTemplate: 'snapshot: {count} files',
     });
 
     await manager.initialize();
 
-    const filePath = join(repoDir, 'Projects', 'note.md');
+    const filePath = path.resolve(join(repoDir, 'Projects', 'note.md'));
     await fs.mkdir(join(repoDir, 'Projects'), { recursive: true });
     await fs.writeFile(filePath, '# Hello world');
 
@@ -170,25 +186,38 @@ describe('GitSnapshotManager', () => {
       {
         type: 'add',
         filePath,
-      }
+      },
     ]);
 
-    expect(result?.success).toBe(true);
-    expect(result?.mode).toBe('commit');
-    expect(result?.changedFiles).toContain('Projects/note.md');
+    // 디버그 정보 추가
+    if (!result) {
+      throw new Error(
+        `createSnapshot returned null. FilePath: ${filePath}, RepoDir: ${repoDir}`
+      );
+    }
 
-    const log = await execFileAsync('git', ['log', '-1', '--pretty=%B'], { cwd: repoDir });
+    expect(result.success).toBe(true);
+    expect(result.mode).toBe('commit');
+    expect(result.changedFiles).toContain('Projects/note.md');
+
+    const log = await execFileAsync('git', ['log', '-1', '--pretty=%B'], {
+      cwd: repoDir,
+    });
     expect(log.stdout.trim()).toBe('snapshot: 1 files');
 
-    const status = await execFileAsync('git', ['status', '--porcelain'], { cwd: repoDir });
+    const status = await execFileAsync('git', ['status', '--porcelain'], {
+      cwd: repoDir,
+    });
     expect(status.stdout.trim()).toBe('');
   });
 
   test('파일 삭제를 스냅샷에 포함', async () => {
-    const filePath = join(repoDir, 'note.md');
+    const filePath = path.resolve(join(repoDir, 'note.md'));
     await fs.writeFile(filePath, '# Temp');
     await execFileAsync('git', ['add', 'note.md'], { cwd: repoDir });
-    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repoDir });
+    await execFileAsync('git', ['commit', '-m', 'add temp file'], {
+      cwd: repoDir,
+    });
 
     const manager = new GitSnapshotManager(repoDir, {
       mode: 'commit',
@@ -201,19 +230,28 @@ describe('GitSnapshotManager', () => {
       {
         type: 'unlink',
         filePath,
-      }
+      },
     ]);
 
-    expect(result?.success).toBe(true);
+    // 디버그 정보 추가
+    if (!result) {
+      throw new Error(
+        `createSnapshot returned null for unlink. FilePath: ${filePath}, RepoDir: ${repoDir}`
+      );
+    }
+
+    expect(result.success).toBe(true);
     expect(result?.changedFiles).toContain('note.md');
 
-    const status = await execFileAsync('git', ['status', '--porcelain'], { cwd: repoDir });
+    const status = await execFileAsync('git', ['status', '--porcelain'], {
+      cwd: repoDir,
+    });
     expect(status.stdout.trim()).toBe('');
   });
 
   test('비활성화 모드에서는 커밋하지 않음', async () => {
     const manager = new GitSnapshotManager(repoDir, {
-      mode: 'disabled'
+      mode: 'disabled',
     });
     await manager.initialize();
 
@@ -224,12 +262,14 @@ describe('GitSnapshotManager', () => {
       {
         type: 'change',
         filePath,
-      }
+      },
     ]);
 
     expect(result).toBeNull();
 
-    const status = await execFileAsync('git', ['status', '--porcelain'], { cwd: repoDir });
+    const status = await execFileAsync('git', ['status', '--porcelain'], {
+      cwd: repoDir,
+    });
     expect(status.stdout).toContain('?? note.md');
 
     await expect(
@@ -239,7 +279,11 @@ describe('GitSnapshotManager', () => {
 });
 
 describe('Integration Tests', () => {
-  const testDir = join(tmpdir(), 'storage-md-integration', Date.now().toString());
+  const testDir = join(
+    tmpdir(),
+    'storage-md-integration',
+    Date.now().toString()
+  );
 
   beforeAll(async () => {
     await fs.mkdir(testDir, { recursive: true });
@@ -282,6 +326,8 @@ describe('Integration Tests', () => {
     const finalNote = await loadNote(testFilePath);
     expect(finalNote.content).toBe('# Updated Content\n\nModified content.');
     expect(finalNote.frontMatter.tags).toEqual(['updated', 'test']);
-    expect(finalNote.frontMatter.updated).not.toBe(finalNote.frontMatter.created);
+    expect(finalNote.frontMatter.updated).not.toBe(
+      finalNote.frontMatter.created
+    );
   });
 });
