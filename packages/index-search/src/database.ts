@@ -162,6 +162,8 @@ export class DatabaseManager {
       `);
 
       // FTS5 가상 테이블 (전문 검색)
+      // Note: content='' 제거 - FTS5가 자체적으로 데이터를 저장하도록 함
+      const tokenizer = this.config.tokenizer || 'unicode61';
       this.db.exec(`
         CREATE VIRTUAL TABLE notes_fts USING fts5(
           uid UNINDEXED,
@@ -170,7 +172,7 @@ export class DatabaseManager {
           tags,
           category UNINDEXED,
           project UNINDEXED,
-          content=''
+          tokenize = '${tokenizer}'
         )
       `);
 

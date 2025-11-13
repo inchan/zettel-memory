@@ -153,7 +153,7 @@ const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
 
       // 결과를 텍스트로 포맷팅
       const resultsText = searchResult.results
-        .map((result, index) => {
+        .map((result: any, index: number) => {
           return `${index + 1}. **${result.title}** (${result.category})
    ID: ${result.id}
    Score: ${result.score.toFixed(2)}
