@@ -20,19 +20,26 @@ import {
   normalizePath,
   generateNoteMetadata,
   analyzeLinks,
+  updateFrontMatter,
+  deleteFile,
 } from '@memory-mcp/storage-md';
+import { IndexSearchEngine } from '@memory-mcp/index-search';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   CreateNoteInputSchema,
   ReadNoteInputSchema,
   ListNotesInputSchema,
   SearchMemoryInputSchema,
+  UpdateNoteInputSchema,
+  DeleteNoteInputSchema,
   ToolName,
   ToolNameSchema,
   type CreateNoteInput,
   type ReadNoteInput,
   type ListNotesInput,
   type SearchMemoryInput,
+  type UpdateNoteInput,
+  type DeleteNoteInput,
 } from './schemas.js';
 import {
   type ToolDefinition,
@@ -45,6 +52,28 @@ import {
 } from './execution-policy.js';
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
+
+/**
+ * IndexSearchEngine 인스턴스 캐시 (lazy initialization)
+ */
+let searchEngineCache: IndexSearchEngine | null = null;
+
+/**
+ * IndexSearchEngine 인스턴스를 가져오거나 생성합니다.
+ */
+function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
+  if (!searchEngineCache) {
+    searchEngineCache = new IndexSearchEngine({
+      dbPath: context.indexPath,
+      tokenizer: 'unicode61',
+      walMode: true,
+    });
+    context.logger.info('IndexSearchEngine 인스턴스 생성됨', {
+      dbPath: context.indexPath,
+    });
+  }
+  return searchEngineCache;
+}
 
 /**
  * Helper: 파일 경로 생성
@@ -60,39 +89,116 @@ function generateFilePath(
 }
 
 /**
- * Tool: search_memory (Mock - 추후 index-search 통합)
+ * Tool: search_memory (FTS5 기반 전문 검색)
  */
 const searchMemoryDefinition: ToolDefinition<typeof SearchMemoryInputSchema> = {
   name: 'search_memory',
   description:
-    '메모리 볼트에서 키워드를 검색합니다. (현재는 기본 구현, 추후 FTS5 통합 예정)',
+    '메모리 볼트에서 FTS5 기반 전문 검색을 수행합니다. 키워드, 카테고리, 태그로 필터링할 수 있습니다.',
   schema: SearchMemoryInputSchema,
-  async handler(input: SearchMemoryInput): Promise<ToolResult> {
+  async handler(
+    input: SearchMemoryInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
     const { query, limit = 10, category, tags = [] } = input;
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `검색 기능은 index-search 통합 준비 중입니다 (v0.2.0).
+    try {
+      const searchEngine = getSearchEngine(context);
 
-현재는 list_notes 도구를 사용하여 노트를 탐색할 수 있습니다.
+      // 검색 옵션 구성 (exactOptionalPropertyTypes 고려)
+      const searchOptions: {
+        limit: number;
+        category?: string;
+        tags?: string[];
+      } = {
+        limit,
+      };
+      if (category) {
+        searchOptions.category = category;
+      }
+      if (tags.length > 0) {
+        searchOptions.tags = tags;
+      }
 
-요청하신 쿼리: ${query}
-카테고리: ${category ?? '(지정되지 않음)'}
-태그: ${tags.join(', ') || '(없음)'}
-최대 결과 수: ${limit}`,
+      // 전문 검색 수행
+      const searchResult = await searchEngine.search(query, searchOptions);
+
+      // 결과가 없는 경우
+      if (searchResult.results.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `검색 결과가 없습니다.
+
+검색 쿼리: ${query}
+카테고리 필터: ${category ?? '(없음)'}
+태그 필터: ${tags.join(', ') || '(없음)'}
+
+힌트: 다른 키워드를 시도하거나 필터 조건을 완화해보세요.`,
+            },
+          ],
+          _meta: {
+            metadata: {
+              query,
+              category: category ?? null,
+              tags,
+              limit,
+              totalResults: 0,
+              searchTimeMs: searchResult.metrics.totalTimeMs,
+            },
+          },
+        };
+      }
+
+      // 결과를 텍스트로 포맷팅
+      const resultsText = searchResult.results
+        .map((result, index) => {
+          return `${index + 1}. **${result.title}** (${result.category})
+   ID: ${result.id}
+   Score: ${result.score.toFixed(2)}
+   Tags: ${result.tags.join(', ') || '(없음)'}
+   Path: ${result.filePath}
+
+   ${result.snippet}
+
+   Links: ${result.links.length > 0 ? result.links.join(', ') : '(없음)'}`;
+        })
+        .join('\n\n---\n\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `검색 완료: "${query}"
+
+총 ${searchResult.totalCount}개 결과 중 ${searchResult.results.length}개 표시
+검색 시간: ${searchResult.metrics.totalTimeMs.toFixed(2)}ms
+
+${resultsText}`,
+          },
+        ],
+        _meta: {
+          metadata: {
+            query,
+            category: category ?? null,
+            tags,
+            limit,
+            totalResults: searchResult.totalCount,
+            returnedResults: searchResult.results.length,
+            searchTimeMs: searchResult.metrics.totalTimeMs,
+            metrics: searchResult.metrics,
+          },
         },
-      ],
-      _meta: {
-        metadata: {
-          query,
-          category: category ?? null,
-          tags,
-          limit,
-        },
-      },
-    };
+      };
+    } catch (error) {
+      context.logger.error('검색 중 오류 발생', { error, query });
+      throw new MemoryMcpError(
+        ErrorCode.INTERNAL_ERROR,
+        `검색 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`,
+        { query, category, tags }
+      );
+    }
   },
 };
 
@@ -513,22 +619,263 @@ const listNotesDefinition: ToolDefinition<typeof ListNotesInputSchema> = {
 };
 
 /**
- * Tool Map (MVP: 4 tools)
+ * Tool: update_note
+ */
+const updateNoteDefinition: ToolDefinition<typeof UpdateNoteInputSchema> = {
+  name: 'update_note',
+  description:
+    '기존 노트를 업데이트합니다. 제목, 내용, 카테고리, 태그, 프로젝트, 링크를 수정할 수 있습니다.',
+  schema: UpdateNoteInputSchema,
+  async handler(
+    input: UpdateNoteInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { uid, title, content, category, tags, project, links } = input;
+
+    try {
+      context.logger.debug(`[tool:update_note] 노트 업데이트 시작`, { uid });
+
+      // 1. 노트 파일 찾기
+      const noteResult = await findNoteByUid(uid, context.vaultPath);
+      if (!noteResult) {
+        throw new MemoryMcpError(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `UID에 해당하는 노트를 찾을 수 없습니다: ${uid}`,
+          { uid }
+        );
+      }
+
+      // 2. 노트 로드 (findNoteByUid가 이미 노트를 반환함)
+      const existingNote = noteResult;
+
+      // 3. Front Matter 업데이트 (exactOptionalPropertyTypes 고려)
+      const frontMatterUpdates: any = {};
+      if (title !== undefined) frontMatterUpdates.title = title;
+      if (category !== undefined) frontMatterUpdates.category = category;
+      if (tags !== undefined) frontMatterUpdates.tags = tags;
+      if (project !== undefined) {
+        frontMatterUpdates.project = project === null ? undefined : project;
+      }
+      if (links !== undefined) frontMatterUpdates.links = links;
+
+      const updatedFrontMatter = updateFrontMatter(
+        existingNote.frontMatter,
+        frontMatterUpdates
+      );
+
+      // 4. 업데이트된 노트 구성
+      const updatedNote = {
+        ...existingNote,
+        frontMatter: updatedFrontMatter,
+        content: content !== undefined ? content : existingNote.content,
+      };
+
+      // 5. 저장
+      await saveNote(updatedNote);
+
+      // 6. 검색 인덱스 업데이트
+      try {
+        const searchEngine = getSearchEngine(context);
+        searchEngine.indexNote(updatedNote);
+        context.logger.debug(`[tool:update_note] 검색 인덱스 업데이트 완료`, {
+          uid,
+        });
+      } catch (indexError) {
+        // 인덱스 업데이트 실패는 경고만 로깅
+        context.logger.warn(
+          `[tool:update_note] 검색 인덱스 업데이트 실패 (무시됨)`,
+          { uid, error: indexError }
+        );
+      }
+
+      context.logger.info(`[tool:update_note] 노트 업데이트 완료`, {
+        uid,
+        title: updatedNote.frontMatter.title,
+      });
+
+      // 7. 응답 생성
+      const updatedFields: string[] = [];
+      if (title) updatedFields.push('제목');
+      if (content !== undefined) updatedFields.push('내용');
+      if (category) updatedFields.push('카테고리');
+      if (tags) updatedFields.push('태그');
+      if (project !== undefined) updatedFields.push('프로젝트');
+      if (links) updatedFields.push('링크');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `노트가 성공적으로 업데이트되었습니다.
+
+**UID**: ${uid}
+**제목**: ${updatedNote.frontMatter.title}
+**카테고리**: ${updatedNote.frontMatter.category}
+**태그**: ${updatedNote.frontMatter.tags.join(', ') || '(없음)'}
+**프로젝트**: ${updatedNote.frontMatter.project || '(없음)'}
+**링크**: ${updatedNote.frontMatter.links.length}개
+**업데이트 시간**: ${updatedNote.frontMatter.updated}
+
+**업데이트된 필드**: ${updatedFields.join(', ')}`,
+          },
+        ],
+        _meta: {
+          metadata: {
+            uid,
+            title: updatedNote.frontMatter.title,
+            category: updatedNote.frontMatter.category,
+            tags: updatedNote.frontMatter.tags,
+            project: updatedNote.frontMatter.project || null,
+            updated: updatedNote.frontMatter.updated,
+            updatedFields,
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof MemoryMcpError) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:update_note] 노트 업데이트 실패`, {
+        uid,
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `노트 업데이트 실패: ${errorMessage}`,
+        { uid }
+      );
+    }
+  },
+};
+
+/**
+ * Tool: delete_note
+ */
+const deleteNoteDefinition: ToolDefinition<typeof DeleteNoteInputSchema> = {
+  name: 'delete_note',
+  description:
+    '노트를 삭제합니다. 삭제는 되돌릴 수 없으므로 confirm=true를 명시적으로 전달해야 합니다.',
+  schema: DeleteNoteInputSchema,
+  async handler(
+    input: DeleteNoteInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { uid, confirm } = input;
+
+    // confirm 체크 (스키마에서도 체크하지만 이중 확인)
+    if (!confirm) {
+      throw new MemoryMcpError(
+        ErrorCode.SCHEMA_VALIDATION_ERROR,
+        '노트 삭제를 확인하려면 confirm=true를 전달해야 합니다.',
+        { uid }
+      );
+    }
+
+    try {
+      context.logger.debug(`[tool:delete_note] 노트 삭제 시작`, { uid });
+
+      // 1. 노트 파일 찾기
+      const noteToDelete = await findNoteByUid(uid, context.vaultPath);
+      if (!noteToDelete) {
+        throw new MemoryMcpError(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `UID에 해당하는 노트를 찾을 수 없습니다: ${uid}`,
+          { uid }
+        );
+      }
+
+      // 2. 노트 정보 추출 (응답용)
+      const noteInfo = {
+        uid: noteToDelete.frontMatter.id,
+        title: noteToDelete.frontMatter.title,
+        category: noteToDelete.frontMatter.category,
+        filePath: noteToDelete.filePath,
+      };
+
+      // 3. 파일 삭제
+      await deleteFile(noteToDelete.filePath);
+
+      // 4. 검색 인덱스에서 제거
+      try {
+        const searchEngine = getSearchEngine(context);
+        searchEngine.removeNote(uid);
+        context.logger.debug(`[tool:delete_note] 검색 인덱스 삭제 완료`, {
+          uid,
+        });
+      } catch (indexError) {
+        // 인덱스 삭제 실패는 경고만 로깅
+        context.logger.warn(
+          `[tool:delete_note] 검색 인덱스 삭제 실패 (무시됨)`,
+          { uid, error: indexError }
+        );
+      }
+
+      context.logger.info(`[tool:delete_note] 노트 삭제 완료`, noteInfo);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `노트가 성공적으로 삭제되었습니다.
+
+**UID**: ${noteInfo.uid}
+**제목**: ${noteInfo.title}
+**카테고리**: ${noteInfo.category}
+**파일 경로**: ${noteInfo.filePath}
+
+⚠️ 이 작업은 되돌릴 수 없습니다.`,
+          },
+        ],
+        _meta: {
+          metadata: {
+            ...noteInfo,
+            deletedAt: new Date().toISOString(),
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof MemoryMcpError) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:delete_note] 노트 삭제 실패`, {
+        uid,
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `노트 삭제 실패: ${errorMessage}`,
+        { uid }
+      );
+    }
+  },
+};
+
+/**
+ * Tool Map (MVP 확장: 6 tools)
  */
 type RegisteredTool =
   | typeof searchMemoryDefinition
   | typeof createNoteDefinition
   | typeof readNoteDefinition
-  | typeof listNotesDefinition;
+  | typeof listNotesDefinition
+  | typeof updateNoteDefinition
+  | typeof deleteNoteDefinition;
 
 const toolMap: Record<ToolName, RegisteredTool> = {
   search_memory: searchMemoryDefinition,
   create_note: createNoteDefinition,
   read_note: readNoteDefinition,
   list_notes: listNotesDefinition,
-  // v0.2.0+
-  update_note: undefined as any,
-  delete_note: undefined as any,
+  update_note: updateNoteDefinition,
+  delete_note: deleteNoteDefinition,
 };
 
 const toolDefinitions: RegisteredTool[] = [
@@ -536,6 +883,8 @@ const toolDefinitions: RegisteredTool[] = [
   createNoteDefinition,
   readNoteDefinition,
   listNotesDefinition,
+  updateNoteDefinition,
+  deleteNoteDefinition,
 ];
 
 function toJsonSchema(definition: RegisteredTool): JsonSchema {
@@ -579,7 +928,7 @@ export async function executeTool(
   if (!definition) {
     throw new MemoryMcpError(
       ErrorCode.MCP_TOOL_ERROR,
-      `등록되지 않은 MCP 툴입니다: ${parseResult.data} (현재 MVP에서는 create_note, read_note, list_notes, search_memory만 지원)`
+      `등록되지 않은 MCP 툴입니다: ${parseResult.data}`
     );
   }
 

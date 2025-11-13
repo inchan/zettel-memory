@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2025-11-13
+
+### Added
+
+#### New MCP Tools
+- `update_note`: Update existing notes
+  - Partial updates supported (only provide fields to change)
+  - Auto-updates `updated` timestamp
+  - Syncs with search index automatically
+  - Validates at least one field is provided
+- `delete_note`: Delete notes permanently
+  - Requires explicit `confirm: true` parameter for safety
+  - Returns note info before deletion
+  - Removes from search index automatically
+  - **Warning**: Cannot be undone
+
+#### Search Implementation ✅
+- `search_memory`: Full-text search powered by SQLite FTS5
+  - FTS5 ranking algorithm with BM25 scoring
+  - Category and tag filtering
+  - Performance metrics (search time, result count)
+  - Snippet generation with query context
+  - Lazy initialization of IndexSearchEngine
+
+#### Testing Infrastructure
+- Basic test coverage: 24.1% (statements)
+  - `common`: 75.57% coverage
+  - `mcp-server/tools`: 40.93% coverage
+  - `storage-md`: 29.77% coverage
+- 25 passing unit tests across 4 test suites
+- Integration test for complete CRUD workflows
+
+### Changed
+- Upgraded from alpha to stable v0.1.0 release
+- Updated `findNoteByUid` API to return `MarkdownNote | null`
+- Improved error messages with specific error codes
+- Enhanced tool registry with all 6 CRUD operations
+
+### Fixed
+- TypeScript compilation with `exactOptionalPropertyTypes`
+- Search engine instantiation with proper lazy loading
+- Note deletion properly removes from FTS5 index
+- Update operation syncs Front Matter timestamps correctly
+
+### Technical Details
+- **Complete MCP Tools**: 6 (create/read/list/search/update/delete)
+- **Test Coverage**: 24.1% → Target 50% for v0.2.0
+- **Search Engine**: SQLite FTS5 with unicode61 tokenizer
+- **Build System**: All packages compile without errors
+- **Linting**: ESLint + Prettier passing
+
+### Removed
+- Placeholder implementation of `search_memory` (replaced with real FTS5)
+- `undefined` placeholders for `update_note` and `delete_note`
+
+### Known Limitations
+- Test coverage still below 50% target (currently 24%)
+- `index-search` package has 0% test coverage (needs tests)
+- File watcher not yet implemented (manual refresh required)
+- Performance benchmarks not yet validated
+- Olima context-aware ranking engine is TODO
+
+### Migration from v0.1.0-alpha.0
+No breaking changes. All existing tools remain compatible.
+New tools (`update_note`, `delete_note`, fully-functional `search_memory`) are additive.
+
+---
+
 ## [0.1.0-alpha.0] - 2025-01-12
 
 ### Added
@@ -77,7 +145,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alpha release - APIs may change
 
 ### Future Roadmap
-- **v0.2.0**: update/delete tools, FTS5 search, 50% test coverage, performance benchmarks
+- **v0.2.0**: 50% test coverage, performance benchmarks, file watcher, production error handling
 - **v1.0.0**: Vector embeddings, Olima context-aware ranking, Docker image, production CI/CD
 
+[0.1.0]: https://github.com/inchan/memory-mcp/releases/tag/v0.1.0
 [0.1.0-alpha.0]: https://github.com/inchan/memory-mcp/releases/tag/v0.1.0-alpha.0
