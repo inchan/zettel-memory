@@ -42,7 +42,7 @@ describe('DatabaseManager', () => {
       )
       .all() as Array<{ name: string }>;
 
-    const tableNames = tables.map((t) => t.name);
+    const tableNames = tables.map(t => t.name);
     expect(tableNames).toContain('notes');
     expect(tableNames).toContain('links');
   });
