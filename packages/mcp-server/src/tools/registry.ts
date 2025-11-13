@@ -888,7 +888,18 @@ const toolDefinitions: RegisteredTool[] = [
 ];
 
 function toJsonSchema(definition: RegisteredTool): JsonSchema {
-  return zodToJsonSchema(definition.schema, definition.name);
+  const schema = zodToJsonSchema(definition.schema, {
+    name: definition.name,
+    target: 'jsonSchema7',
+    $refStrategy: 'none', // MCP에서는 $ref 없이 인라인 스키마가 필요
+  });
+
+  // MCP 프로토콜은 최상위 type이 "object"이어야 함
+  if (schema && typeof schema === 'object' && !('type' in schema)) {
+    return { ...schema, type: 'object' } as JsonSchema;
+  }
+
+  return schema;
 }
 
 /**

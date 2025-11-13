@@ -22,19 +22,40 @@ function parseInteger(value: string, defaultValue: number): number {
 }
 
 /**
+ * 서버 옵션 빌드 헬퍼
+ */
+function buildServerOptions(options: {
+  verbose?: boolean;
+  vault?: string;
+  index?: string;
+  mode?: string;
+  timeout?: number;
+  retries?: number;
+}): MemoryMcpServerOptions {
+  if (options.verbose) {
+    logger.setLevel("debug");
+  }
+
+  return {
+    vaultPath: options.vault ?? "./vault",
+    indexPath: options.index ?? "./.memory-index.db",
+    mode: (options.mode ?? "dev") as "dev" | "prod",
+    policy: {
+      timeoutMs: options.timeout ?? 5_000,
+      maxRetries: options.retries ?? 2,
+    },
+  };
+}
+
+/**
  * CLI 프로그램 설정
+ * 루트 레벨에 모든 서버 옵션 정의 (Claude Desktop 호환)
  */
 program
   .name("memory-mcp")
   .description("Memory MCP Server - 로컬 퍼시스턴트 메모리를 MCP 서버로 노출")
-  .version(PACKAGE_VERSION);
-
-/**
- * 서버 시작 명령
- */
-program
-  .command("server")
-  .description("MCP 서버 시작 (JSON-RPC 2.0 stdin/stdout)")
+  .version(PACKAGE_VERSION)
+  // 루트 레벨 옵션: 서브커맨드 없이 직접 실행 가능
   .option("--verbose", "상세 로그 출력", false)
   .option("--vault <path>", "볼트 디렉토리 경로", "./vault")
   .option("--index <path>", "인덱스 데이터베이스 경로", "./.memory-index.db")
@@ -52,20 +73,8 @@ program
     2
   )
   .action(async (options) => {
-    if (options.verbose) {
-      logger.setLevel("debug");
-    }
-
-    const serverOptions: MemoryMcpServerOptions = {
-      vaultPath: options.vault,
-      indexPath: options.index,
-      mode: options.mode,
-      policy: {
-        timeoutMs: options.timeout,
-        maxRetries: options.retries,
-      },
-    };
-
+    // 루트 레벨 기본 action: 옵션으로 서버 시작
+    const serverOptions = buildServerOptions(options);
     logger.info("Memory MCP Server 시작 중...", serverOptions);
 
     try {
@@ -77,15 +86,21 @@ program
   });
 
 /**
- * 기본 명령 (서버 시작)
+ * 서버 시작 명령 (하위 호환성을 위한 별칭)
+ * Codex 권장: cmd.parent?.optsWithGlobals() 사용
  */
 program
-  .action(async () => {
-    logger.info("기본 명령: 서버 시작");
-    logger.info("자세한 옵션은 --help를 참조하세요");
+  .command("server")
+  .description("MCP 서버 시작 (별칭 - 루트 레벨 실행 권장)")
+  .action(async function (this: Command) {
+    // 부모 옵션 상속 (Codex 피드백 반영)
+    const opts = this.optsWithGlobals?.() ?? this.opts();
+    const serverOptions = buildServerOptions(opts);
+
+    logger.info("Memory MCP Server 시작 중 (server 커맨드)...", serverOptions);
 
     try {
-      await startServer();
+      await startServer(serverOptions);
     } catch (error) {
       logger.error("서버 시작 실패:", error);
       process.exit(1);
@@ -108,19 +123,21 @@ program
 
 /**
  * 헬스체크 명령
+ * Codex 피드백: 루트 옵션 상속, 보안을 위해 검증만 수행 (파일 열지 않음)
  */
 program
   .command("healthcheck")
   .description("시스템 상태 확인")
-  .option("--vault <path>", "볼트 디렉토리 경로", "./vault")
-  .option("--index <path>", "인덱스 데이터베이스 경로", "./.memory-index.db")
-  .action(async (options) => {
+  .action(async function (this: Command) {
+    // 부모 옵션 상속 (필요한 옵션만 사용)
+    const opts = this.optsWithGlobals?.() ?? this.opts();
+
     logger.info("시스템 헬스체크 중...");
 
     // TODO: 실제 헬스체크 로직 구현
     console.log("✅ Memory MCP Server 상태: 정상");
-    console.log(`✅ 볼트 경로: ${options.vault}`);
-    console.log(`✅ 인덱스 경로: ${options.index}`);
+    console.log(`✅ 볼트 경로: ${opts.vault ?? "./vault"}`);
+    console.log(`✅ 인덱스 경로: ${opts.index ?? "./.memory-index.db"}`);
     console.log("✅ 의존성: 모두 로드됨");
 
     logger.info("헬스체크 완료");

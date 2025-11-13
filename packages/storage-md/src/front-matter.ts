@@ -159,8 +159,16 @@ export function serializeFrontMatter(frontMatter: FrontMatter): string {
     // Zod 스키마로 재검증 (안전성)
     const validated = FrontMatterSchema.parse(frontMatter);
 
+    // undefined 값 제거 (gray-matter는 undefined를 처리할 수 없음)
+    const cleanedData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(validated)) {
+      if (value !== undefined) {
+        cleanedData[key] = value;
+      }
+    }
+
     // gray-matter를 사용하여 YAML로 직렬화
-    const serialized = matter.stringify('', validated);
+    const serialized = matter.stringify('', cleanedData);
 
     // Front Matter 부분만 추출 (--- 포함)
     const frontMatterMatch = serialized.match(/^---\n([\s\S]*?)\n---/);

@@ -302,15 +302,39 @@ memory-mcp/
 
 ### Running Locally
 
+**Direct Execution (Recommended):**
 ```bash
-# Start server with test vault
-node packages/mcp-server/dist/cli.js --vault /tmp/test-vault
+# ✅ Root-level options (Claude Desktop compatible)
+node packages/mcp-server/dist/cli.js --vault /tmp/test-vault --index /tmp/test-index.db
 
 # Or with npm
-npm start -- --vault /tmp/test-vault
+npm start -- --vault /tmp/test-vault --index /tmp/test-index.db
 
-# Run healthcheck
-node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault
+# Using npx (if published)
+npx @memory-mcp/mcp-server --vault ~/my-vault --index ~/.memory-index.db
+```
+
+**Subcommand (Backward Compatible):**
+```bash
+# ⚠️ Still works but not recommended
+node packages/mcp-server/dist/cli.js server --vault /tmp/test-vault
+```
+
+**Healthcheck:**
+```bash
+node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index /tmp/test-index.db
+```
+
+**Available Options:**
+```bash
+--vault <path>      # Vault directory path (default: ./vault)
+--index <path>      # Index database path (default: ./.memory-index.db)
+--mode <mode>       # Mode: dev | prod (default: dev)
+--timeout <ms>      # Tool execution timeout (default: 5000ms)
+--retries <count>   # Tool execution retry count (default: 2)
+--verbose           # Enable verbose logging
+--help              # Show help
+--version           # Show version
 ```
 
 ## 📖 Documentation

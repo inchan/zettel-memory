@@ -588,6 +588,6 @@
 
 ---
 
-*"Good code is simple, clear, and purposeful."* - DEVELOPMENT_GUIDELINES.md
+*"Good code is simple, clear, and purposeful."* - docs/DEVELOPMENT_GUIDELINES.md
 
 **Let's build! 🚀**

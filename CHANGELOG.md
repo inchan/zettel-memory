@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+#### CLI Improvements
+- **Root-level option support**: CLI now accepts options directly without `server` subcommand
+  - ✅ **Recommended**: `node cli.js --vault ~/vault --index ~/.index.db`
+  - ⚠️ **Backward compatible**: `node cli.js server --vault ~/vault` still works
+  - 🎯 **Claude Desktop compatible**: Direct execution without subcommand
+- **Option inheritance**: Subcommands now properly inherit parent options using `optsWithGlobals()`
+- **Help output**: Updated `--help` to reflect new usage patterns
+
+#### Security
+- **Healthcheck**: Removed unnecessary file access operations for security
+  - Now only validates paths without opening files
+  - Reduces attack surface for vault inspection
+
+### Technical Details
+- Commander.js root-level `.action()` handler for direct execution
+- `optsWithGlobals()` used in subcommands for proper option inheritance
+- All CLI options (--vault, --index, --mode, --timeout, --retries, --verbose) available at root level
+
+### Migration Guide
+**Before (v0.1.0):**
+```bash
+# ❌ This fails in Claude Desktop
+node cli.js server --vault ~/vault --index ~/.index.db
+```
+
+**After (v0.1.1+):**
+```bash
+# ✅ Works everywhere including Claude Desktop
+node cli.js --vault ~/vault --index ~/.index.db
+
+# ⚠️ Old way still works (backward compatible)
+node cli.js server --vault ~/vault --index ~/.index.db
+```
+
+---
+
 ## [0.1.0] - 2025-11-13
 
 ### Added
