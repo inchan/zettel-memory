@@ -78,7 +78,7 @@ describe('Indexing Speed Performance Tests', () => {
       context
     );
 
-    const uid = createResult._meta?.metadata?.uid;
+    const uid = createResult._meta?.metadata?.id;
 
     // 업데이트 및 재인덱싱 시간 측정
     const startTime = Date.now();
