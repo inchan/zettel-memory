@@ -32,9 +32,9 @@ describe('End-to-End Workflow Tests', () => {
         context
       );
 
-      const uid = createResult._meta?.metadata?.uid;
+      const uid = createResult._meta?.metadata?.id;
       expect(uid).toBeDefined();
-      expect(createResult.content[0]?.text).toContain('성공');
+      expect(createResult.content[0]?.text).toContain('생성');
 
       // 2. 노트 읽기
       const readResult1 = await executeTool('read_note', { uid }, context);
@@ -117,7 +117,7 @@ describe('End-to-End Workflow Tests', () => {
 
       expect(searchResult.content[0]?.type).toBe('text');
       const text = searchResult.content[0]?.text || '';
-      expect(text).toContain('JavaScript') || expect(text).toContain('javascript');
+      expect(text.toLowerCase()).toContain('javascript');
     });
 
     it('노트 생성 → 리스트 조회 → 필터링', async () => {
@@ -165,21 +165,21 @@ describe('End-to-End Workflow Tests', () => {
         { title: 'Note 1', content: 'Content 1', tags: ['tag1'] },
         context
       );
-      const uid1 = note1._meta?.metadata?.uid;
+      const uid1 = note1._meta?.metadata?.id;
 
       const note2 = await executeTool(
         'create_note',
         { title: 'Note 2', content: 'Content 2', tags: ['tag2'] },
         context
       );
-      const uid2 = note2._meta?.metadata?.uid;
+      const uid2 = note2._meta?.metadata?.id;
 
       const note3 = await executeTool(
         'create_note',
         { title: 'Note 3', content: 'Content 3', tags: ['tag3'] },
         context
       );
-      const uid3 = note3._meta?.metadata?.uid;
+      const uid3 = note3._meta?.metadata?.id;
 
       // 2. Note 2 업데이트
       await executeTool(
@@ -214,7 +214,7 @@ describe('End-to-End Workflow Tests', () => {
         },
         context
       );
-      const projectUid = projectNote._meta?.metadata?.uid;
+      const projectUid = projectNote._meta?.metadata?.id;
 
       // 2. 프로젝트에 연결된 노트들 생성
       await executeTool(
@@ -259,7 +259,7 @@ describe('End-to-End Workflow Tests', () => {
         { title: 'Test', content: 'Content' },
         context
       );
-      const uid = createResult._meta?.metadata?.uid;
+      const uid = createResult._meta?.metadata?.id;
 
       // 2. 잘못된 업데이트 시도 (빈 제목)
       await expect(

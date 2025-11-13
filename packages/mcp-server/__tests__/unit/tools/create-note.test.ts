@@ -134,11 +134,11 @@ describe('create_note tool', () => {
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0]?.type).toBe('text');
-      expect(result.content[0]?.text).toContain('노트가 성공적으로 생성되었습니다');
+      expect(result.content[0]?.text).toContain('노트가 생성되었습니다');
       expect(result.content[0]?.text).toContain(input.title);
 
       // 메타데이터 확인
-      expect(result._meta?.metadata).toHaveProperty('uid');
+      expect(result._meta?.metadata).toHaveProperty('id');
       expect(result._meta?.metadata).toHaveProperty('filePath');
     });
 

@@ -57,7 +57,7 @@ describe('Storage Integration Tests', () => {
       };
 
       const result = await executeTool('create_note', input, context);
-      const uid = result._meta?.metadata?.uid;
+      const uid = result._meta?.metadata?.id;
 
       // 파일 읽기
       const files = fs.readdirSync(context.vaultPath);
@@ -85,7 +85,7 @@ describe('Storage Integration Tests', () => {
       };
 
       const createResult = await executeTool('create_note', input, context);
-      const uid = createResult._meta?.metadata?.uid;
+      const uid = createResult._meta?.metadata?.id;
 
       // 노트 읽기
       const readResult = await executeTool('read_note', { uid }, context);
@@ -104,7 +104,7 @@ describe('Storage Integration Tests', () => {
       };
 
       const result = await executeTool('create_note', input, context);
-      const uid = result._meta?.metadata?.uid;
+      const uid = result._meta?.metadata?.id;
 
       // 파일 읽기
       const files = fs.readdirSync(context.vaultPath);
@@ -147,7 +147,7 @@ describe('Storage Integration Tests', () => {
         },
         context
       );
-      const uid = createResult._meta?.metadata?.uid;
+      const uid = createResult._meta?.metadata?.id;
 
       // 노트 업데이트
       await executeTool(
@@ -202,7 +202,7 @@ describe('Storage Integration Tests', () => {
         { title: 'To Delete', content: 'Will be deleted' },
         context
       );
-      const uid = createResult._meta?.metadata?.uid;
+      const uid = createResult._meta?.metadata?.id;
 
       // 파일 존재 확인
       let files = fs.readdirSync(context.vaultPath);

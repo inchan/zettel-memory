@@ -26,7 +26,7 @@ describe('delete_note tool', () => {
       context
     );
 
-    createdNoteUid = createResult._meta?.metadata?.uid;
+    createdNoteUid = createResult._meta?.metadata?.id;
     expect(createdNoteUid).toBeDefined();
   });
 
@@ -110,7 +110,7 @@ describe('delete_note tool', () => {
       await expect(
         executeTool('read_note', { uid: createdNoteUid }, context)
       ).rejects.toMatchObject({
-        code: ErrorCode.FILE_NOT_FOUND,
+        code: ErrorCode.RESOURCE_NOT_FOUND,
       });
     });
 
@@ -136,7 +136,7 @@ describe('delete_note tool', () => {
       await expect(
         executeTool('delete_note', input, context)
       ).rejects.toMatchObject({
-        code: ErrorCode.FILE_NOT_FOUND,
+        code: ErrorCode.RESOURCE_NOT_FOUND,
       });
     });
 
@@ -178,7 +178,7 @@ describe('delete_note tool', () => {
       await expect(
         executeTool('delete_note', { uid: createdNoteUid, confirm: true }, context)
       ).rejects.toMatchObject({
-        code: ErrorCode.FILE_NOT_FOUND,
+        code: ErrorCode.RESOURCE_NOT_FOUND,
       });
     });
   });

@@ -27,7 +27,7 @@ describe('update_note tool', () => {
       context
     );
 
-    createdNoteUid = createResult._meta?.metadata?.uid;
+    createdNoteUid = createResult._meta?.metadata?.id;
     expect(createdNoteUid).toBeDefined();
   });
 
@@ -215,7 +215,7 @@ describe('update_note tool', () => {
       await expect(
         executeTool('update_note', input, context)
       ).rejects.toMatchObject({
-        code: ErrorCode.FILE_NOT_FOUND,
+        code: ErrorCode.RESOURCE_NOT_FOUND,
       });
     });
 
