@@ -48,9 +48,14 @@ npm run test:coverage
 
 ### 0% 커버리지 패키지 ❌❌❌
 ```
-assoc-engine/src:      0.00%  (연상 엔진 미검증)
+assoc-engine/src:      0.00%  (⚠️  아직 구현 안 됨 - TODO)
 mcp-server/src (CLI):  0.00%  (CLI 미검증)
 ```
+
+**중요 발견 (2025-11-14)**:
+- `assoc-engine`: 실제 구현 없음, `export const PACKAGE_VERSION = '0.1.0';` 만 존재
+- **결론**: 테스트를 작성할 기능이 없음 → 구현 후 테스트 작성
+- **수정된 우선순위**: mcp-server CLI 테스트 먼저 작성
 
 ### < 25% 커버리지 ❌❌
 ```
@@ -63,16 +68,24 @@ link-graph:  20.97%  (링크 그래프 미검증)
 ## 🎯 3주 실행 계획 (구체적, 측정 가능)
 
 ### Week 1: Critical Issues
-**목표**: E2E 활성화 + 0% 제거
+**목표**: E2E 활성화 + 구현된 0% 코드 커버리지 제거
 
-- [ ] **Day 1-2**: E2E stdio 이슈 수정, 재활성화
-- [ ] **Day 3-4**: assoc-engine 테스트 (0% → 60%+)
-- [ ] **Day 5**: mcp-server CLI 테스트 (0% → 60%+)
+- [x] **Day 1**: E2E stdio 이슈 수정, 재활성화 ✅
+  - 결과: 13/13 E2E 테스트 통과
+  - Commit: `a6a9bb4` - fix(e2e): fix E2E test path and re-enable in CI
+
+- [ ] **Day 2-3**: mcp-server CLI 테스트 (0% → 60%+)
+  - ⚠️  **수정**: assoc-engine → mcp-server CLI로 변경
+  - 이유: assoc-engine은 아직 구현되지 않음 (구현 후 테스트 작성)
+
+- [ ] **Day 4-5**: 실패한 테스트 수정 or watcher 테스트 시작
+  - 13개 실패 테스트 수정
+  - 또는 watcher 커버리지 향상 시작
 
 **검증**:
 ```bash
-npm run test:e2e  # 통과 확인
-npm run test:coverage | grep assoc-engine  # 60%+ 확인
+npm run test:e2e  # ✅ 통과 (완료)
+npm run test:coverage | grep "mcp-server/src"  # cli.ts, server.ts 60%+ 목표
 ```
 
 ---
