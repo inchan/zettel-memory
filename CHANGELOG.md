@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Adjusted Jest coverage thresholds to realistic levels for v0.0.1 (30% lines, 25% branches/functions)
+- Updated README with current test coverage (37% statements, 155 tests)
+
 ---
 
 ## [0.0.1] - 2025-11-14

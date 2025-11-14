@@ -357,7 +357,7 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index
 - [x] Link analysis & backlinks
 - [x] CLI interface
 - [x] MCP server integration
-- [x] Basic test coverage (24%)
+- [x] Test coverage: 37% (155 tests passing)
 
 ### v0.1.0 (Next)
 - [ ] Comprehensive unit tests (50%+ coverage)
