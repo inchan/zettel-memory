@@ -28,22 +28,26 @@ interface ParseResult {
 
 /**
  * Front Matter 기본값 생성
+ * @param title - 노트 제목
+ * @param category - PARA 카테고리 (선택 사항, 없으면 Zettelkasten 폴더에 저장됨)
  */
 function createDefaultFrontMatter(
   title: string,
-  category: FrontMatter['category'] = 'Resources'
+  category?: FrontMatter['category']
 ): Partial<FrontMatter> {
   const now = new Date().toISOString();
 
-  return {
+  const base = {
     id: generateUid(),
     title: title || 'Untitled',
-    category,
     tags: [],
     created: now,
     updated: now,
     links: [],
   };
+
+  // category가 제공된 경우에만 추가
+  return category ? { ...base, category } : base;
 }
 
 /**
@@ -159,8 +163,16 @@ export function serializeFrontMatter(frontMatter: FrontMatter): string {
     // Zod 스키마로 재검증 (안전성)
     const validated = FrontMatterSchema.parse(frontMatter);
 
+    // undefined 값 제거 (gray-matter는 undefined를 처리할 수 없음)
+    const cleanedData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(validated)) {
+      if (value !== undefined) {
+        cleanedData[key] = value;
+      }
+    }
+
     // gray-matter를 사용하여 YAML로 직렬화
-    const serialized = matter.stringify('', validated);
+    const serialized = matter.stringify('', cleanedData);
 
     // Front Matter 부분만 추출 (--- 포함)
     const frontMatterMatch = serialized.match(/^---\n([\s\S]*?)\n---/);
@@ -356,7 +368,7 @@ export function removeTagFromFrontMatter(
  */
 export function generateFrontMatterFromTitle(
   title: string,
-  category: FrontMatter['category'] = 'Resources',
+  category?: FrontMatter['category'],
   additionalData?: Partial<FrontMatter>
 ): FrontMatter {
   const defaultFM = createDefaultFrontMatter(title, category);

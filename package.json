@@ -1,6 +1,6 @@
 {
   "name": "memory-mcp",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Memory MCP (Olima + Basic-Memory + Zettelkasten + PARA) - 로컬 퍼시스턴트 메모리를 MCP 서버로 노출",
   "private": true,
   "workspaces": [
@@ -10,18 +10,26 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "tsc --build",
     "dev": "npm run dev --workspaces",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathPattern='__tests__/unit'",
+    "test:integration": "jest --testPathPattern='__tests__/integration'",
+    "test:e2e": "jest --testPathPattern='__tests__/e2e'",
+    "test:performance": "jest --testPathPattern='__tests__/performance' --runInBand --testTimeout=300000",
+    "test:mcp": "npm run test:e2e",
     "lint": "eslint packages/*/src/**/*.ts",
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
-    "typecheck": "tsc --noEmit",
-    "clean": "npm run clean --workspaces",
-    "start": "node packages/mcp-server/dist/index.js"
+    "typecheck": "tsc --build",
+    "clean": "npm run clean --workspaces && tsc --build --clean",
+    "start": "node packages/mcp-server/dist/index.js",
+    "validate:mcp": "./scripts/validate-mcp.sh",
+    "validate:inspector": "npx @modelcontextprotocol/inspector node packages/mcp-server/dist/cli.js"
   },
   "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.15.0",
     "@types/jest": "^29.5.8",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",

@@ -1,6 +1,6 @@
 # Memory MCP
 
-> **v0.1.0-alpha** - Local-first persistent memory MCP server
+> **v0.1.0** - Local-first persistent memory MCP server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
@@ -13,7 +13,7 @@
 - 📝 **Markdown + YAML Front Matter** - 표준 포맷으로 노트 저장
 - 🗂️ **PARA Organization** - Projects/Areas/Resources/Archives 분류
 - 🔗 **Zettelkasten Linking** - UID 기반 노트 연결 및 백링크
-- 🔍 **SQLite FTS5 Search** - 빠른 전문 검색 (v0.2.0)
+- 🔍 **SQLite FTS5 Search** - 빠른 전문 검색 ✓
 - 🏠 **Local-first** - 모든 데이터를 로컬에 안전하게 보관
 - 🔐 **Privacy** - 네트워크 송출 없음, 원자적 쓰기
 
@@ -81,9 +81,9 @@ This is my first note in Memory MCP!
 EOF
 ```
 
-## 📚 Available Tools (v0.1.0-alpha)
+## 📚 Available Tools (v0.1.0)
 
-Memory MCP provides the following MCP tools:
+Memory MCP provides 6 MCP tools for complete note management:
 
 ### `create_note`
 Create a new Markdown note with Front Matter.
@@ -156,10 +156,73 @@ List notes with filtering, sorting, and pagination.
 
 ---
 
-### `search_memory` *(coming in v0.2.0)*
-Full-text search with FTS5 integration.
+### `search_memory`
+Full-text search powered by SQLite FTS5.
 
-Currently returns a placeholder message. Use `list_notes` with filters for now.
+**Input**:
+```json
+{
+  "query": "zettelkasten method",
+  "limit": 10,
+  "category": "Resources",
+  "tags": ["productivity"]
+}
+```
+
+**Features**:
+- FTS5 full-text search with ranking
+- Category and tag filtering
+- Performance metrics (search time, result count)
+- Snippet generation with query highlighting
+
+**Output**: Ranked search results with snippets, scores, and metadata
+
+---
+
+### `update_note`
+Update an existing note's title, content, metadata, or links.
+
+**Input**:
+```json
+{
+  "uid": "20250101T120000Z",
+  "title": "Updated Title",
+  "content": "New content...",
+  "category": "Projects",
+  "tags": ["updated", "important"],
+  "project": "new-project",
+  "links": ["other-note-uid"]
+}
+```
+
+**Features**:
+- Partial updates (only provide fields you want to change)
+- Auto-updates `updated` timestamp
+- Syncs with search index automatically
+- At least one field required (besides `uid`)
+
+**Output**: Updated note metadata and list of modified fields
+
+---
+
+### `delete_note`
+Delete a note permanently (requires explicit confirmation).
+
+**Input**:
+```json
+{
+  "uid": "20250101T120000Z",
+  "confirm": true
+}
+```
+
+**Safety**:
+- `confirm: true` required to prevent accidental deletion
+- Returns note info before deletion
+- Removes from search index automatically
+- ⚠️ **Cannot be undone**
+
+**Output**: Deleted note information with confirmation
 
 ---
 
@@ -239,15 +302,39 @@ memory-mcp/
 
 ### Running Locally
 
+**Direct Execution (Recommended):**
 ```bash
-# Start server with test vault
-node packages/mcp-server/dist/cli.js --vault /tmp/test-vault
+# ✅ Root-level options (Claude Desktop compatible)
+node packages/mcp-server/dist/cli.js --vault /tmp/test-vault --index /tmp/test-index.db
 
 # Or with npm
-npm start -- --vault /tmp/test-vault
+npm start -- --vault /tmp/test-vault --index /tmp/test-index.db
 
-# Run healthcheck
-node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault
+# Using npx (if published)
+npx @memory-mcp/mcp-server --vault ~/my-vault --index ~/.memory-index.db
+```
+
+**Subcommand (Backward Compatible):**
+```bash
+# ⚠️ Still works but not recommended
+node packages/mcp-server/dist/cli.js server --vault /tmp/test-vault
+```
+
+**Healthcheck:**
+```bash
+node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index /tmp/test-index.db
+```
+
+**Available Options:**
+```bash
+--vault <path>      # Vault directory path (default: ./vault)
+--index <path>      # Index database path (default: ./.memory-index.db)
+--mode <mode>       # Mode: dev | prod (default: dev)
+--timeout <ms>      # Tool execution timeout (default: 5000ms)
+--retries <count>   # Tool execution retry count (default: 2)
+--verbose           # Enable verbose logging
+--help              # Show help
+--version           # Show version
 ```
 
 ## 📖 Documentation
@@ -256,24 +343,26 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) - Epic/feature tree structure
 - [`docs/TECHNICAL_SPEC.md`](docs/TECHNICAL_SPEC.md) - Technical stack & KPIs
 - [`docs/GOALS.md`](docs/GOALS.md) - Project goals & milestones
-- [`DEVELOPMENT_GUIDELINES.md`](DEVELOPMENT_GUIDELINES.md) - Development principles (SOLID, TDD, SDD)
+- [`DEVELOPMENT_GUIDELINES.md`](docs/DEVELOPMENT_GUIDELINES.md) - Development principles (SOLID, TDD, SDD)
 
 ## 🗺️ Roadmap
 
-### v0.1.0-alpha (Current) ✅
-- [x] Basic CRUD operations (create/read/list)
+### v0.1.0 (Current) ✅
+- [x] Complete CRUD operations (create/read/update/delete/list/search)
 - [x] Markdown + Front Matter storage
 - [x] PARA categorization
+- [x] FTS5 full-text search with ranking
 - [x] Link analysis & backlinks
 - [x] CLI interface
 - [x] MCP server integration
+- [x] Basic test coverage (24%)
 
 ### v0.2.0 (Next)
-- [ ] `update_note` and `delete_note` tools
-- [ ] FTS5 full-text search integration
-- [ ] Comprehensive unit tests (50% coverage)
-- [ ] Performance benchmarks
+- [ ] Comprehensive unit tests (50%+ coverage)
+- [ ] Performance benchmarks & KPI validation
 - [ ] Zettelkasten link auto-suggestions
+- [ ] File watcher for real-time sync
+- [ ] Production error handling & logging
 
 ### v1.0.0 (Future)
 - [ ] Vector embedding search
@@ -288,7 +377,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ### Development Workflow
 
-1. Follow [DEVELOPMENT_GUIDELINES.md](DEVELOPMENT_GUIDELINES.md)
+1. Follow [DEVELOPMENT_GUIDELINES.md](docs/DEVELOPMENT_GUIDELINES.md)
 2. Write tests for new features
 3. Ensure `npm run build` succeeds
 4. Use Conventional Commits for commit messages
