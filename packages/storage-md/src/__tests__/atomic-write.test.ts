@@ -225,8 +225,9 @@ describe('Atomic Write Guarantee', () => {
     it('should provide meaningful error messages', async () => {
       const invalidPath = '/nonexistent/directory/test.txt';
 
-      await expect(atomicWriteFile(invalidPath, 'content', { ensureDir: false }))
-        .rejects.toThrow(/원자적 파일 쓰기 실패/);
+      await expect(
+        atomicWriteFile(invalidPath, 'content', { ensureDir: false })
+      ).rejects.toThrow(/원자적 파일 쓰기 실패/);
     });
   });
 

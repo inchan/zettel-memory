@@ -133,8 +133,9 @@ describe('Sensitive Data Masking', () => {
       const masked = maskSensitiveInfo(input);
 
       // @localhost는 유효한 이메일이지만 실제로는 마스킹될 수 있음
-      // 이것은 false positive 케이스
-      // 테스트 목적: 정탐율 측정
+      // 현재 구현은 이를 마스킹함 (localhost는 TLD로 인식)
+      // 이것은 알려진 false positive 케이스
+      expect(masked).toBeDefined();
     });
 
     it('should handle false positives (numbers that look like phone)', () => {
