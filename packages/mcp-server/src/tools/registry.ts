@@ -918,6 +918,45 @@ export function listTools(): Array<{
 }
 
 /**
+ * Claude Desktop 호환성을 위한 입력 전처리
+ * Claude Desktop이 배열을 문자열로 직렬화하여 전송하는 경우를 처리
+ */
+function preprocessToolInput(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null) {
+    return input;
+  }
+
+  const obj = input as Record<string, unknown>;
+  const processed = { ...obj };
+
+  // tags 필드가 문자열이면 JSON 파싱 시도
+  if (typeof processed.tags === 'string') {
+    try {
+      const parsed = JSON.parse(processed.tags);
+      if (Array.isArray(parsed)) {
+        processed.tags = parsed;
+      }
+    } catch {
+      // 파싱 실패 시 원래 값 유지 (스키마 검증에서 에러 처리됨)
+    }
+  }
+
+  // links 필드가 문자열이면 JSON 파싱 시도
+  if (typeof processed.links === 'string') {
+    try {
+      const parsed = JSON.parse(processed.links);
+      if (Array.isArray(parsed)) {
+        processed.links = parsed;
+      }
+    } catch {
+      // 파싱 실패 시 원래 값 유지
+    }
+  }
+
+  return processed;
+}
+
+/**
  * Execute a tool
  */
 export async function executeTool(
@@ -943,8 +982,11 @@ export async function executeTool(
     );
   }
 
+  // Claude Desktop 호환성: 문자열로 된 배열을 파싱
+  const preprocessedInput = preprocessToolInput(rawInput);
+
   const parsedInput = await definition.schema
-    .parseAsync(rawInput)
+    .parseAsync(preprocessedInput)
     .catch((error: unknown) => {
       throw new MemoryMcpError(
         ErrorCode.SCHEMA_VALIDATION_ERROR,
