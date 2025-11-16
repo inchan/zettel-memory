@@ -7,7 +7,7 @@
 - 선택: Rust (핵심 인덱싱 모듈 최적화 시)
 
 ### Core Libraries
-- **파일/MD**: `gray-matter`(FM 파싱), `remark`(MD 처리), `chokidar`(FS 워처)
+- **파일/MD**: `gray-matter`(FM 파싱), `chokidar`(FS 워처)
 - **검색**: `better-sqlite3` + **SQLite FTS5** (대안: `elasticlunr`)
 - **CLI/MCP**: `commander`, MCP 표준 I/O
 - **보안**: `zod`(스키마 검증), 선택: `node-keytar`(로컬 키체인)

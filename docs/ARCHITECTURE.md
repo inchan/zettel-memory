@@ -23,7 +23,7 @@ sequenceDiagram
     participant Storage as Storage
     participant Index as Index
 
-    Client->>MCP: create_memory(content, meta)
+    Client->>MCP: create_note(title, content, category, tags)
     MCP->>Storage: write Markdown (atomic)
     MCP->>Index: update FTS + link graph
     Index-->>MCP: ack
@@ -36,12 +36,13 @@ sequenceDiagram
     participant Client as Client(Agent)
     participant MCP as MCP Server
     participant Index as Index
+    Note over Assoc: Assoc Engine (planned v0.1.0+)
     participant Assoc as Assoc Engine
 
     Client->>MCP: search_memory(query, filter)
     MCP->>Index: query FTS + link graph
-    Index-->>Assoc: candidates
-    Assoc-->>MCP: reranked candidates
+    Index-->>MCP: ranked candidates (FTS5)
+    Note right of MCP: v0.1.0+: Assoc reranking
     MCP-->>Client: results (snippets + links)
 ```
 

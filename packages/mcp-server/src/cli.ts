@@ -14,7 +14,7 @@ const program = new Command();
 /**
  * CLI 버전 정보
  */
-const PACKAGE_VERSION = "0.1.0";
+const PACKAGE_VERSION = "0.0.1";
 
 function parseInteger(value: string, defaultValue: number): number {
   const parsed = Number.parseInt(value, 10);
