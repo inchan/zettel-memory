@@ -224,11 +224,14 @@ describe('유틸리티 함수 테스트', () => {
       logger.setLevel('info'); // Reset to default
     });
 
-    it('should log info messages', () => {
+    it('should log info messages to stderr for MCP compatibility', () => {
       logger.setLevel('info');
       logger.info('Test info message');
 
-      expect(console.info).toHaveBeenCalled();
+      // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('[INFO]')
+      );
     });
 
     it('should log error messages', () => {
@@ -249,14 +252,21 @@ describe('유틸리티 함수 테스트', () => {
       logger.setLevel('info');
       logger.debug('Debug message');
 
-      expect(console.debug).not.toHaveBeenCalled();
+      // debug 레벨 이하이므로 출력되지 않음
+      expect(console.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('[DEBUG]'),
+        expect.anything()
+      );
     });
 
-    it('should show debug at debug level', () => {
+    it('should show debug at debug level to stderr for MCP compatibility', () => {
       logger.setLevel('debug');
       logger.debug('Debug message');
 
-      expect(console.debug).toHaveBeenCalled();
+      // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('[DEBUG]')
+      );
     });
 
     it('should filter messages below threshold', () => {
@@ -264,15 +274,23 @@ describe('유틸리티 함수 테스트', () => {
       logger.info('Info message');
       logger.warn('Warn message');
 
-      expect(console.info).not.toHaveBeenCalled();
+      // error 레벨에서는 info와 warn이 필터링됨
+      expect(console.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('[INFO]'),
+        expect.anything()
+      );
       expect(console.warn).not.toHaveBeenCalled();
     });
 
-    it('should log with metadata', () => {
+    it('should log with metadata to stderr for MCP compatibility', () => {
       logger.setLevel('info');
       logger.info('Message with metadata', { key: 'value' });
 
-      expect(console.info).toHaveBeenCalled();
+      // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('[INFO]'),
+        { key: 'value' }
+      );
     });
   });
 

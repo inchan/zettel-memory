@@ -230,6 +230,9 @@ export function formatFileSize(bytes: number): string {
 
 /**
  * 간단한 로거 클래스
+ *
+ * 중요: MCP 프로토콜 호환성을 위해 모든 로그는 stderr로 출력됩니다.
+ * stdout은 JSON-RPC 메시지 전용으로 예약되어 있습니다.
  */
 class Logger {
   private level: LogLevel = 'info';
@@ -250,13 +253,15 @@ class Logger {
 
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
-      console.debug(`[DEBUG] ${message}`, ...args);
+      // MCP 호환: stderr로 출력 (stdout은 JSON-RPC 전용)
+      console.error(`[DEBUG] ${message}`, ...args);
     }
   }
 
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
-      console.info(`[INFO] ${message}`, ...args);
+      // MCP 호환: stderr로 출력 (stdout은 JSON-RPC 전용)
+      console.error(`[INFO] ${message}`, ...args);
     }
   }
 

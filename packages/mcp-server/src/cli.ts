@@ -114,11 +114,12 @@ program
   .command("version")
   .description("버전 정보 출력")
   .action(() => {
-    console.log(`Memory MCP Server v${PACKAGE_VERSION}`);
-    console.log("- MCP 프로토콜 호환");
-    console.log("- JSON-RPC 2.0 stdin/stdout 통신");
-    console.log("- PARA + Zettelkasten 조직 체계");
-    console.log("- SQLite FTS5 전문 검색");
+    // MCP 호환: stderr로 출력 (stdout은 JSON-RPC 전용)
+    console.error(`Memory MCP Server v${PACKAGE_VERSION}`);
+    console.error("- MCP 프로토콜 호환");
+    console.error("- JSON-RPC 2.0 stdin/stdout 통신");
+    console.error("- PARA + Zettelkasten 조직 체계");
+    console.error("- SQLite FTS5 전문 검색");
   });
 
 /**
@@ -134,11 +135,11 @@ program
 
     logger.info("시스템 헬스체크 중...");
 
-    // TODO: 실제 헬스체크 로직 구현
-    console.log("✅ Memory MCP Server 상태: 정상");
-    console.log(`✅ 볼트 경로: ${opts.vault ?? "./vault"}`);
-    console.log(`✅ 인덱스 경로: ${opts.index ?? "./.memory-index.db"}`);
-    console.log("✅ 의존성: 모두 로드됨");
+    // MCP 호환: stderr로 출력 (stdout은 JSON-RPC 전용)
+    console.error("✅ Memory MCP Server 상태: 정상");
+    console.error(`✅ 볼트 경로: ${opts.vault ?? "./vault"}`);
+    console.error(`✅ 인덱스 경로: ${opts.index ?? "./.memory-index.db"}`);
+    console.error("✅ 의존성: 모두 로드됨");
 
     logger.info("헬스체크 완료");
   });
