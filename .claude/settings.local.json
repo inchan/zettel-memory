@@ -34,7 +34,12 @@
       "Skill(codex-claude-loop)",
       "Bash(npx tsx:*)",
       "Bash(mkdir:*)",
-      "Bash(npm run test:mcp:*)"
+      "Bash(npm run test:mcp:*)",
+      "Bash(npm whoami:*)",
+      "Bash(git pull:*)",
+      "Bash(head -10 echo '---Above is stdout only---' node -e \"\nconsole.log(''''console.log → stdout'''');\nconsole.info(''''console.info → stdout'''');\nconsole.warn(''''console.warn → stderr'''');\nconsole.error(''''console.error → stderr'''');\nconsole.debug(''''console.debug → stdout'''');\n\")",
+      "Bash(head -10 echo '---Above is nothing (both suppressed)---' node -e \"\nconsole.log(''''console.log'''');\nconsole.info(''''console.info'''');\nconsole.warn(''''console.warn'''');\nconsole.error(''''console.error'''');\nconsole.debug(''''console.debug'''');\n\" echo '---Above is stderr only---')",
+      "Bash(timeout 3 node:*)"
     ],
     "deny": [],
     "ask": []
