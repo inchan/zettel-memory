@@ -216,7 +216,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
     const { title, content, category, tags, project, links } = input;
 
     try {
-      // Generate UID
+      // Generate UID (한 번만 생성하여 파일명과 노트 ID에 동일하게 사용)
       const uid = generateUid();
 
       // Generate file path
@@ -231,8 +231,9 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
         })
       );
 
-      // Create note object
+      // Create note object (생성된 UID를 명시적으로 전달하여 이중 생성 방지)
       const note = createNewNote(title, content, filePath, category, {
+        id: uid, // 파일명과 동일한 UID 사용
         tags,
         project,
         links: links || [],
@@ -240,6 +241,21 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
 
       // Save to file
       await saveNote(note);
+
+      // 검색 인덱스에 새 노트 추가
+      try {
+        const searchEngine = getSearchEngine(context);
+        searchEngine.indexNote(note);
+        context.logger.debug(`[tool:create_note] 검색 인덱스 업데이트 완료`, {
+          uid,
+        });
+      } catch (indexError) {
+        // 인덱스 업데이트 실패는 경고만 로깅 (노트 생성은 성공으로 처리)
+        context.logger.warn(
+          `[tool:create_note] 검색 인덱스 업데이트 실패 (무시됨)`,
+          { uid, error: indexError }
+        );
+      }
 
       context.logger.info(
         `[tool:create_note] 노트 생성 완료: ${uid}`,
