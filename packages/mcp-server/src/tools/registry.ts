@@ -76,6 +76,21 @@ function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
 }
 
 /**
+ * 검색 엔진 캐시를 정리합니다.
+ * 서버 종료 시 리소스 정리를 위해 호출됩니다.
+ */
+export function cleanupSearchEngine(): void {
+  if (searchEngineCache) {
+    try {
+      searchEngineCache.close();
+      searchEngineCache = null;
+    } catch {
+      // 정리 중 에러는 무시 (서버 종료 시이므로)
+    }
+  }
+}
+
+/**
  * Helper: 파일 경로 생성
  */
 function generateFilePath(
@@ -243,6 +258,8 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
       await saveNote(note);
 
       // 검색 인덱스에 새 노트 추가
+      let indexingSuccess = true;
+      let indexingWarning = '';
       try {
         const searchEngine = getSearchEngine(context);
         searchEngine.indexNote(note);
@@ -251,6 +268,9 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
         });
       } catch (indexError) {
         // 인덱스 업데이트 실패는 경고만 로깅 (노트 생성은 성공으로 처리)
+        indexingSuccess = false;
+        indexingWarning =
+          '\n\n⚠️ 검색 인덱스 업데이트 실패: 검색 결과에 즉시 반영되지 않을 수 있습니다.';
         context.logger.warn(
           `[tool:create_note] 검색 인덱스 업데이트 실패 (무시됨)`,
           { uid, error: indexError }
@@ -263,6 +283,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
           uid: note.frontMatter.id,
           title: note.frontMatter.title,
           filePath: note.filePath,
+          indexingSuccess,
         })
       );
 
@@ -278,7 +299,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
 **태그**: ${note.frontMatter.tags.join(', ') || '(없음)'}
 **프로젝트**: ${note.frontMatter.project || '(없음)'}
 **파일**: ${path.basename(note.filePath)}
-**생성 시간**: ${note.frontMatter.created}`,
+**생성 시간**: ${note.frontMatter.created}${indexingWarning}`,
           },
         ],
         _meta: {
@@ -290,6 +311,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
             project: note.frontMatter.project || null,
             filePath: note.filePath,
             created: note.frontMatter.created,
+            indexingSuccess,
           },
         },
       };

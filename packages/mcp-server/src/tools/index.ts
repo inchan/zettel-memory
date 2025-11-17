@@ -1,4 +1,4 @@
-export { executeTool, listTools } from './registry.js';
+export { executeTool, listTools, cleanupSearchEngine } from './registry.js';
 export {
   CreateNoteInputSchema,
   ReadNoteInputSchema,
