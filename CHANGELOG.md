@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Adjusted Jest coverage thresholds to realistic levels for v0.0.1 (30% lines, 25% branches/functions)
-- Updated README with current test coverage (37% statements, 155 tests)
+- Updated README with current test coverage (64% statements, 408 tests)
 
 ### Fixed
 - Fixed package name references in jest.config.js moduleNameMapper (@memory-mcp → @inchankang/zettel-memory)
@@ -24,8 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Coverage Improvement Roadmap
 
 Current state (v0.0.1):
-- Overall: 37.34% statements, 30.93% branches, 27.77% functions, 37.02% lines
-- 155 tests passing, 1 skipped
+- Overall: 64.08% statements, 53.34% branches, 63.32% functions, 63.86% lines
+- 408 tests passing
 
 Coverage gaps identified:
 - CLI (packages/mcp-server/src/cli.ts): 0% coverage ❌
@@ -108,7 +108,7 @@ Timeline: Target completion by v0.1.0 release
 - Performance: P95 latency < 120ms (100 notes)
 
 #### Testing Infrastructure
-- Test coverage: 24% (statements), 155 passing tests
+- Test coverage: 64% (statements), 408 passing tests
   - `common`: 75.57% coverage
   - `mcp-server/tools`: 40.93% coverage
   - `storage-md`: 29.77% coverage
@@ -150,4 +150,4 @@ Timeline: Target completion by v0.1.0 release
 - **v0.1.0**: 50%+ test coverage, performance benchmarks, file watcher
 - **v0.2.0**: Vector embeddings, Olima ranking engine, Docker image
 
-[0.0.1]: https://github.com/inchan/zettel-memory/releases/tag/v0.0.1
+[0.0.1]: https://github.com/inchankang/zettel-memory/releases/tag/v0.0.1

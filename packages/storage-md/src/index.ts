@@ -18,4 +18,4 @@ export * from './watcher';
 // 타입 정의
 export * from './types';
 
-export const PACKAGE_VERSION = '0.1.0';
+export const PACKAGE_VERSION = '0.0.1';

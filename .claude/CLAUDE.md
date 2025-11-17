@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Markdown Storage**: YAML Front Matter + local file system
 - **Full-Text Search**: SQLite FTS5 based search + link graph
 - **PARA Organization**: Projects/Areas/Resources/Archives + Zettelkasten
-- **Olima Association Engine**: Session context-based associative search and recommendations
+- **Olima Association Engine**: Session context-based associative search and recommendations (planned for v0.1.0+)
 - **MCP Interface**: Standard MCP server/CLI (`npx zettel-memory`)
 
 ### Technology Stack
@@ -42,7 +42,7 @@ project/
 1. **MCP Server Core**: Protocol server and CLI, standard error handling/retry strategy
 2. **Storage Layer**: Markdown file management, Front Matter schema, atomic writes
 3. **Indexing & Search**: SQLite FTS5 based full-text search, link graph traversal
-4. **Association Engine (Olima)**: Session context-based associative search and recommendations
+4. **Association Engine (Olima)**: Session context-based associative search and recommendations (planned for v0.1.0+)
 5. **Zettelkasten Linking**: UID/backlinks/orphan note management
 
 ### Package Dependencies
@@ -170,7 +170,7 @@ npm run dev
 npm test
 
 # Or from root, target specific package
-npm run build --workspace=@inchan/zettel-memory
+npm run build --workspace=@inchankang/zettel-memory
 ```
 
 ### Code Conventions
@@ -196,7 +196,7 @@ npm run build --workspace=@inchan/zettel-memory
 - Zero data loss
 
 ### Testing
-- Test coverage 80%+
+- Test coverage target 80%+ (current: 64% with 408 tests)
 - Unit/integration/load testing
 
 ---

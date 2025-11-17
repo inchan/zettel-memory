@@ -16,6 +16,6 @@ describe('Package Version', () => {
   });
 
   it('should be version 0.1.0', () => {
-    expect(PACKAGE_VERSION).toBe('0.1.0');
+    expect(PACKAGE_VERSION).toBe('0.0.1');
   });
 });

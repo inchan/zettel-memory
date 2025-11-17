@@ -9,4 +9,4 @@ export * from './fts-index';
 export * from './link-graph';
 export * from './search-engine';
 
-export const PACKAGE_VERSION = '0.1.0';
+export const PACKAGE_VERSION = '0.0.1';

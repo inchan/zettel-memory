@@ -22,13 +22,13 @@
 ### Installation
 
 ```bash
-npm install -g @inchan/zettel-memory
+npm install -g @inchankang/zettel-memory
 ```
 
 Or use with `npx`:
 
 ```bash
-npx @inchan/zettel-memory --vault ~/my-vault
+npx @inchankang/zettel-memory --vault ~/my-vault
 ```
 
 ### Claude Desktop Setup
@@ -41,7 +41,7 @@ Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json`
     "memory": {
       "command": "npx",
       "args": [
-        "@inchan/zettel-memory",
+        "@inchankang/zettel-memory",
         "--vault",
         "/Users/yourname/Documents/memory-vault"
       ]
@@ -268,7 +268,7 @@ Your note content in Markdown...
 
 ```bash
 # Clone the repository
-git clone https://github.com/inchan/zettel-memory.git
+git clone https://github.com/inchankang/zettel-memory.git
 cd zettel-memory
 
 # Install dependencies
@@ -295,7 +295,7 @@ zettel-memory/
 │   ├── mcp-server/      # MCP server & CLI
 │   ├── storage-md/      # Markdown storage & Front Matter
 │   ├── index-search/    # FTS5 search & link graph
-│   ├── assoc-engine/    # Context-aware ranking (future)
+│   ├── assoc-engine/    # Context-aware ranking (planned for v0.1.0+)
 │   └── common/          # Shared utilities & types
 └── docs/                # Documentation & specs
 ```
@@ -311,7 +311,7 @@ node packages/mcp-server/dist/cli.js --vault /tmp/test-vault --index /tmp/test-i
 npm start -- --vault /tmp/test-vault --index /tmp/test-index.db
 
 # Using npx (if published)
-npx @inchan/zettel-memory --vault ~/my-vault --index ~/.memory-index.db
+npx @inchankang/zettel-memory --vault ~/my-vault --index ~/.memory-index.db
 ```
 
 **Subcommand (Backward Compatible):**
@@ -357,7 +357,7 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index
 - [x] Link analysis & backlinks
 - [x] CLI interface
 - [x] MCP server integration
-- [x] Test coverage: 37% (155 tests passing)
+- [x] Test coverage: 64% (408 tests passing)
 
 ### v0.1.0 (Next)
 - [ ] Comprehensive unit tests (50%+ coverage)
@@ -375,7 +375,7 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please follow the guidelines below.
 
 ### Development Workflow
 
@@ -397,9 +397,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
-- 🐛 [Report a bug](https://github.com/inchan/zettel-memory/issues)
-- 💡 [Request a feature](https://github.com/inchan/zettel-memory/issues)
-- 💬 [Discussions](https://github.com/inchan/zettel-memory/discussions)
+- 🐛 [Report a bug](https://github.com/inchankang/zettel-memory/issues)
+- 💡 [Request a feature](https://github.com/inchankang/zettel-memory/issues)
+- 💬 [Discussions](https://github.com/inchankang/zettel-memory/discussions)
 
 ---
 
