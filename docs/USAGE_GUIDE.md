@@ -44,7 +44,7 @@ code %APPDATA%\Claude\claude_desktop_config.json
 - `--vault`: Markdown 노트를 저장할 디렉토리 (존재하지 않으면 자동 생성)
 - `--index`: SQLite FTS5 인덱스 파일 경로
 - 절대 경로 사용 필수
-- ✅ **루트 레벨 옵션 사용** - `server` 서브커맨드 불필요 (v0.1.1+)
+- ✅ **루트 레벨 옵션 사용** - `server` 서브커맨드 불필요 (v0.0.1+)
 
 #### Step 4: Claude Desktop 재시작
 
@@ -368,5 +368,5 @@ Markdown 형식으로 작성...
 
 ## 지원
 
-- GitHub Issues: https://github.com/inchan/zettel-memory/issues
+- GitHub Issues: https://github.com/inchankang/zettel-memory/issues
 - 문서: `/docs`

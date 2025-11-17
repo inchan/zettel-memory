@@ -268,7 +268,7 @@ Your note content in Markdown...
 
 ```bash
 # Clone the repository
-git clone https://github.com/inchan/zettel-memory.git
+git clone https://github.com/inchankang/zettel-memory.git
 cd zettel-memory
 
 # Install dependencies
@@ -397,9 +397,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
-- 🐛 [Report a bug](https://github.com/inchan/zettel-memory/issues)
-- 💡 [Request a feature](https://github.com/inchan/zettel-memory/issues)
-- 💬 [Discussions](https://github.com/inchan/zettel-memory/discussions)
+- 🐛 [Report a bug](https://github.com/inchankang/zettel-memory/issues)
+- 💡 [Request a feature](https://github.com/inchankang/zettel-memory/issues)
+- 💬 [Discussions](https://github.com/inchankang/zettel-memory/discussions)
 
 ---
 

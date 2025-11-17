@@ -8,4 +8,4 @@
 // export * from './context';
 // export * from './recommendation';
 
-export const PACKAGE_VERSION = '0.1.0';
+export const PACKAGE_VERSION = '0.0.1';

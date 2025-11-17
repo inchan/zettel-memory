@@ -137,7 +137,7 @@ npm pack
 # Test installation from tarball
 mkdir /tmp/test-install
 cd /tmp/test-install
-npm install /home/user/zettel-memory/packages/mcp-server/inchankang-zettel-memory-0.0.1.tgz
+npm install /path/to/zettel-memory/packages/mcp-server/inchankang-zettel-memory-0.0.1.tgz
 
 # Test the CLI
 npx @inchankang/zettel-memory --help
@@ -189,7 +189,7 @@ git push origin v0.0.1
 ```
 
 Then create a release on GitHub:
-1. Go to https://github.com/inchan/zettel-memory/releases/new
+1. Go to https://github.com/inchankang/zettel-memory/releases/new
 2. Select the tag `v0.0.1`
 3. Title: `v0.0.1 - First Public Release`
 4. Copy content from CHANGELOG.md for release notes

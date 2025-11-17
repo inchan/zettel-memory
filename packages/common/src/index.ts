@@ -8,4 +8,4 @@ export * from './types';
 export * from './utils';
 export * from './errors';
 
-export const PACKAGE_VERSION = '0.1.0';
+export const PACKAGE_VERSION = '0.0.1';

@@ -30,7 +30,7 @@ describe('Storage-md Package', () => {
   });
 
   test('패키지 버전이 정의되어 있어야 함', () => {
-    expect(PACKAGE_VERSION).toBe('0.1.0');
+    expect(PACKAGE_VERSION).toBe('0.0.1');
   });
 
   test('새 노트 생성', () => {
