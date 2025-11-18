@@ -205,21 +205,30 @@ describe('유틸리티 함수 테스트', () => {
     });
   });
 
+  // eslint-disable-next-line no-console -- Testing Logger requires console mocking
   describe('Logger', () => {
     let originalConsole: typeof console;
 
     beforeEach(() => {
       originalConsole = { ...console };
+      // eslint-disable-next-line no-console
       console.info = jest.fn();
+      // eslint-disable-next-line no-console
       console.error = jest.fn();
+      // eslint-disable-next-line no-console
       console.warn = jest.fn();
+      // eslint-disable-next-line no-console
       console.debug = jest.fn();
     });
 
     afterEach(() => {
+      // eslint-disable-next-line no-console
       console.info = originalConsole.info;
+      // eslint-disable-next-line no-console
       console.error = originalConsole.error;
+      // eslint-disable-next-line no-console
       console.warn = originalConsole.warn;
+      // eslint-disable-next-line no-console
       console.debug = originalConsole.debug;
       logger.setLevel('info'); // Reset to default
     });
@@ -229,6 +238,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.info('Test info message');
 
       // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      // eslint-disable-next-line no-console
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('[INFO]')
       );
@@ -238,6 +248,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.setLevel('info');
       logger.error('Test error message');
 
+      // eslint-disable-next-line no-console
       expect(console.error).toHaveBeenCalled();
     });
 
@@ -245,6 +256,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.setLevel('warn');
       logger.warn('Test warning');
 
+      // eslint-disable-next-line no-console
       expect(console.warn).toHaveBeenCalled();
     });
 
@@ -253,6 +265,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.debug('Debug message');
 
       // debug 레벨 이하이므로 출력되지 않음
+      // eslint-disable-next-line no-console
       expect(console.error).not.toHaveBeenCalledWith(
         expect.stringContaining('[DEBUG]'),
         expect.anything()
@@ -264,6 +277,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.debug('Debug message');
 
       // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      // eslint-disable-next-line no-console
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('[DEBUG]')
       );
@@ -275,10 +289,12 @@ describe('유틸리티 함수 테스트', () => {
       logger.warn('Warn message');
 
       // error 레벨에서는 info와 warn이 필터링됨
+      // eslint-disable-next-line no-console
       expect(console.error).not.toHaveBeenCalledWith(
         expect.stringContaining('[INFO]'),
         expect.anything()
       );
+      // eslint-disable-next-line no-console
       expect(console.warn).not.toHaveBeenCalled();
     });
 
@@ -287,6 +303,7 @@ describe('유틸리티 함수 테스트', () => {
       logger.info('Message with metadata', { key: 'value' });
 
       // MCP 호환성: 모든 로그는 stderr로 출력 (stdout은 JSON-RPC 전용)
+      // eslint-disable-next-line no-console
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('[INFO]'),
         { key: 'value' }
