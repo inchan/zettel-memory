@@ -4,15 +4,15 @@
  */
 
 import type { ToolExecutionContext } from './types.js';
-import type { MarkdownNote } from '@inchankang/zettel-memory-common';
 import type { IndexSearchEngine } from '@inchankang/zettel-memory-index-search';
+import { loadNote } from '@inchankang/zettel-memory-storage-md';
 
 export type IndexOperation = 'index' | 'update' | 'delete';
 
 export interface RecoveryQueueEntry {
   operation: IndexOperation;
   noteUid: string;
-  note?: MarkdownNote; // index/update 작업에만 필요
+  noteFilePath?: string; // index/update 작업에만 필요 (delete는 UID만 필요)
   timestamp: number;
   retries: number;
   lastError?: string;
@@ -124,12 +124,16 @@ export class IndexRecoveryQueue {
       // 작업 실행
       switch (entry.operation) {
         case 'index':
-        case 'update':
-          if (!entry.note) {
-            throw new Error('Note is required for index/update operation');
+        case 'update': {
+          if (!entry.noteFilePath) {
+            throw new Error('File path is required for index/update operation');
           }
-          searchEngine.indexNote(entry.note);
+
+          // 파일에서 노트 로드 (메모리 절약)
+          const note = await loadNote(entry.noteFilePath);
+          searchEngine.indexNote(note);
           break;
+        }
         case 'delete':
           searchEngine.removeNote(entry.noteUid);
           break;
@@ -147,14 +151,18 @@ export class IndexRecoveryQueue {
       entry.lastError = String(error);
       entry.timestamp = Date.now(); // 타임스탬프 업데이트 (다음 재시도 시간 계산용)
 
-      if (entry.retries >= this.maxRetries) {
-        // 최대 재시도 초과 - 큐에서 제거하고 로그
+      // 재시도 불가능한 에러 판별
+      const isRetriable = this.isRetriableError(error);
+
+      if (!isRetriable || entry.retries >= this.maxRetries) {
+        // 재시도 불가능하거나 최대 재시도 초과 - 큐에서 제거하고 로그
         this.removeFromQueue(entry.noteUid, entry.operation);
-        this.context.logger.error('[IndexRecoveryQueue] 최대 재시도 초과, 작업 포기', {
+        this.context.logger.error('[IndexRecoveryQueue] 작업 포기', {
           operation: entry.operation,
           noteUid: entry.noteUid,
           retries: entry.retries,
           lastError: entry.lastError,
+          reason: !isRetriable ? 'non-retriable error' : 'max retries exceeded',
         });
       } else {
         this.context.logger.warn('[IndexRecoveryQueue] 작업 실패, 재시도 예정', {
@@ -165,6 +173,33 @@ export class IndexRecoveryQueue {
         });
       }
     }
+  }
+
+  /**
+   * 에러가 재시도 가능한지 판별
+   */
+  private isRetriableError(error: unknown): boolean {
+    // Node.js error code 체크
+    if (error && typeof error === 'object' && 'code' in error) {
+      const errorCode = (error as { code?: string }).code;
+      const nonRetriableCodes = ['ENOENT', 'EACCES', 'EPERM', 'EISDIR'];
+      if (errorCode && nonRetriableCodes.includes(errorCode)) {
+        return false;
+      }
+    }
+
+    // 에러 메시지 패턴 체크
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const nonRetriablePatterns = [
+      'does not exist', // 리소스 없음
+      'not found', // 리소스 없음
+      'invalid', // 유효하지 않은 데이터
+      'malformed', // 잘못된 형식
+    ];
+
+    return !nonRetriablePatterns.some(pattern =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
   }
 
   /**

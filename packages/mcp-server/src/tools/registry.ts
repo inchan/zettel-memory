@@ -310,7 +310,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
         recoveryQueue.enqueue({
           operation: 'index',
           noteUid: uid,
-          note,
+          noteFilePath: note.filePath,
         });
 
         context.logger.warn(
@@ -766,7 +766,7 @@ const updateNoteDefinition: ToolDefinition<typeof UpdateNoteInputSchema> = {
         recoveryQueue.enqueue({
           operation: 'update',
           noteUid: uid,
-          note: updatedNote,
+          noteFilePath: updatedNote.filePath,
         });
 
         context.logger.warn(
@@ -1097,7 +1097,10 @@ export async function executeTool(
     ...overrides,
   };
 
-  const startTime = Date.now();
+  // 메트릭 수집 시작
+  const metrics = getMetricsCollector(context);
+  const startTime = metrics.startToolExecution(definition.name);
+
   context.logger.debug(
     `[tool:${definition.name}] 실행 시작`,
     createLogEntry('debug', 'tool.start', {
@@ -1108,10 +1111,6 @@ export async function executeTool(
       ),
     })
   );
-
-  // 메트릭 수집 시작
-  const metrics = getMetricsCollector(context);
-  metrics.startToolExecution(definition.name);
 
   try {
     const result = await withExecutionPolicy<ToolResult>(

@@ -65,11 +65,13 @@ export class MetricsCollector {
 
   /**
    * Tool 실행 시작 기록
+   * @returns startTime 값 (endToolExecution에 전달해야 함)
    */
-  startToolExecution(toolName: string): string {
+  startToolExecution(toolName: string): number {
+    const startTime = Date.now();
     const metric: ToolMetric = {
       toolName,
-      startTime: Date.now(),
+      startTime,
     };
 
     this.toolMetrics.push(metric);
@@ -79,8 +81,7 @@ export class MetricsCollector {
       this.toolMetrics.shift();
     }
 
-    // metric ID 반환 (배열 인덱스)
-    return `${toolName}-${metric.startTime}`;
+    return startTime;
   }
 
   /**
