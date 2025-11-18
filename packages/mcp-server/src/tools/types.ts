@@ -5,6 +5,7 @@ import type { ExecutionPolicyOptions } from './execution-policy.js';
 import type { ToolName } from './schemas.js';
 import type { IndexSearchEngine } from '@inchankang/zettel-memory-index-search';
 import type { IndexRecoveryQueue } from './index-recovery.js';
+import type { MetricsCollector } from './metrics.js';
 
 export type LoggerLike = Pick<
   typeof baseLogger,
@@ -27,6 +28,11 @@ export interface ToolExecutionContext {
    * @internal
    */
   _recoveryQueue?: IndexRecoveryQueue;
+  /**
+   * Metrics collector for monitoring
+   * @internal
+   */
+  _metricsCollector?: MetricsCollector;
 }
 
 export type ToolResult = CallToolResult;

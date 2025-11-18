@@ -51,6 +51,7 @@ import {
   withExecutionPolicy,
 } from './execution-policy.js';
 import { IndexRecoveryQueue } from './index-recovery.js';
+import { MetricsCollector } from './metrics.js';
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
@@ -81,6 +82,17 @@ function getRecoveryQueue(context: ToolExecutionContext): IndexRecoveryQueue {
     context.logger.debug('IndexRecoveryQueue 인스턴스 생성됨');
   }
   return context._recoveryQueue;
+}
+
+/**
+ * MetricsCollector 인스턴스를 가져오거나 생성합니다.
+ */
+function getMetricsCollector(context: ToolExecutionContext): MetricsCollector {
+  if (!context._metricsCollector) {
+    context._metricsCollector = new MetricsCollector();
+    context.logger.debug('MetricsCollector 인스턴스 생성됨');
+  }
+  return context._metricsCollector;
 }
 
 /**
@@ -1097,6 +1109,10 @@ export async function executeTool(
     })
   );
 
+  // 메트릭 수집 시작
+  const metrics = getMetricsCollector(context);
+  metrics.startToolExecution(definition.name);
+
   try {
     const result = await withExecutionPolicy<ToolResult>(
       () => definition.handler(parsedInput as any, context),
@@ -1124,6 +1140,9 @@ export async function executeTool(
       })
     );
 
+    // 메트릭 수집 완료 (성공)
+    metrics.endToolExecution(definition.name, startTime, true);
+
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -1135,6 +1154,10 @@ export async function executeTool(
         error: error instanceof Error ? error.message : String(error),
       })
     );
+
+    // 메트릭 수집 완료 (실패)
+    const errorCode = error instanceof MemoryMcpError ? error.code : 'UNKNOWN';
+    metrics.endToolExecution(definition.name, startTime, false, errorCode);
 
     throw error;
   }

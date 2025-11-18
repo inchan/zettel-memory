@@ -18,3 +18,9 @@ export {
   type IndexOperation,
   type RecoveryQueueEntry,
 } from './index-recovery.js';
+export {
+  MetricsCollector,
+  type ToolMetric,
+  type IndexQueueMetric,
+  type MetricsSummary,
+} from './metrics.js';
