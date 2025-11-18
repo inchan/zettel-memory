@@ -84,6 +84,8 @@ describe('MetricsCollector Integration Tests', () => {
           content: `Content ${i}`,
           category: 'Resources',
         }, context);
+        // UID 충돌 방지를 위해 작은 지연 추가
+        await new Promise(resolve => setTimeout(resolve, 2));
       }
 
       const summary = context._metricsCollector.getSummary();
