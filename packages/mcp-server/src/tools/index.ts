@@ -1,4 +1,4 @@
-export { executeTool, listTools } from './registry.js';
+export { executeTool, listTools, cleanupSearchEngine } from './registry.js';
 export {
   CreateNoteInputSchema,
   ReadNoteInputSchema,
@@ -13,3 +13,14 @@ export {
   DEFAULT_EXECUTION_POLICY,
   withExecutionPolicy,
 } from './execution-policy.js';
+export {
+  IndexRecoveryQueue,
+  type IndexOperation,
+  type RecoveryQueueEntry,
+} from './index-recovery.js';
+export {
+  MetricsCollector,
+  type ToolMetric,
+  type IndexQueueMetric,
+  type MetricsSummary,
+} from './metrics.js';

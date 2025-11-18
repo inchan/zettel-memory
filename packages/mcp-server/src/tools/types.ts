@@ -3,6 +3,9 @@ import type { logger as baseLogger } from '@inchankang/zettel-memory-common';
 import type { z } from 'zod';
 import type { ExecutionPolicyOptions } from './execution-policy.js';
 import type { ToolName } from './schemas.js';
+import type { IndexSearchEngine } from '@inchankang/zettel-memory-index-search';
+import type { IndexRecoveryQueue } from './index-recovery.js';
+import type { MetricsCollector } from './metrics.js';
 
 export type LoggerLike = Pick<
   typeof baseLogger,
@@ -15,6 +18,21 @@ export interface ToolExecutionContext {
   mode: 'dev' | 'prod';
   logger: LoggerLike;
   policy: ExecutionPolicyOptions;
+  /**
+   * SearchEngine instance (managed by server or test context)
+   * @internal
+   */
+  _searchEngineInstance?: IndexSearchEngine;
+  /**
+   * Index recovery queue for failed index operations
+   * @internal
+   */
+  _recoveryQueue?: IndexRecoveryQueue;
+  /**
+   * Metrics collector for monitoring
+   * @internal
+   */
+  _metricsCollector?: MetricsCollector;
 }
 
 export type ToolResult = CallToolResult;

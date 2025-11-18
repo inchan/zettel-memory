@@ -17,6 +17,7 @@ import {
   DEFAULT_EXECUTION_POLICY,
   executeTool,
   listTools,
+  cleanupSearchEngine,
 } from "./tools/index.js";
 import type { ToolExecutionContext } from "./tools/index.js";
 import type { ExecutionPolicyOptions } from "./tools/execution-policy.js";
@@ -140,18 +141,33 @@ class MemoryMCPServer {
 
     process.on("SIGINT", async () => {
       logger.info("Received SIGINT, shutting down gracefully...");
-      await this.server.close();
+      await this.shutdown();
       process.exit(0);
     });
 
     process.on("SIGTERM", async () => {
       logger.info("Received SIGTERM, shutting down gracefully...");
-      await this.server.close();
+      await this.shutdown();
       process.exit(0);
     });
 
     await this.server.connect(transport);
     logger.info("Memory MCP Server started successfully");
+  }
+
+  /**
+   * 서버 종료 및 리소스 정리
+   */
+  async shutdown(): Promise<void> {
+    logger.info("Cleaning up resources...");
+
+    // 검색 엔진 인스턴스 정리 (SQLite 연결 포함)
+    cleanupSearchEngine(this.toolContext);
+    logger.info("Search engine instance cleaned up");
+
+    // MCP 서버 연결 종료
+    await this.server.close();
+    logger.info("Server connection closed");
   }
 }
 

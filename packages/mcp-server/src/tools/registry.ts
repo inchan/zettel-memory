@@ -32,6 +32,9 @@ import {
   SearchMemoryInputSchema,
   UpdateNoteInputSchema,
   DeleteNoteInputSchema,
+  GetVaultStatsInputSchema,
+  GetBacklinksInputSchema,
+  GetMetricsInputSchema,
   ToolName,
   ToolNameSchema,
   type CreateNoteInput,
@@ -40,6 +43,9 @@ import {
   type SearchMemoryInput,
   type UpdateNoteInput,
   type DeleteNoteInput,
+  type GetVaultStatsInput,
+  type GetBacklinksInput,
+  type GetMetricsInput,
 } from './schemas.js';
 import {
   type ToolDefinition,
@@ -50,20 +56,18 @@ import {
   DEFAULT_EXECUTION_POLICY,
   withExecutionPolicy,
 } from './execution-policy.js';
+import { IndexRecoveryQueue } from './index-recovery.js';
+import { MetricsCollector } from './metrics.js';
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
 /**
- * IndexSearchEngine 인스턴스 캐시 (lazy initialization)
- */
-let searchEngineCache: IndexSearchEngine | null = null;
-
-/**
  * IndexSearchEngine 인스턴스를 가져오거나 생성합니다.
+ * DI 패턴: context에서 인스턴스를 관리하여 테스트 격리 및 리소스 정리 개선
  */
 function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
-  if (!searchEngineCache) {
-    searchEngineCache = new IndexSearchEngine({
+  if (!context._searchEngineInstance) {
+    context._searchEngineInstance = new IndexSearchEngine({
       dbPath: context.indexPath,
       tokenizer: 'unicode61',
       walMode: true,
@@ -72,7 +76,58 @@ function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
       dbPath: context.indexPath,
     });
   }
-  return searchEngineCache;
+  return context._searchEngineInstance;
+}
+
+/**
+ * IndexRecoveryQueue 인스턴스를 가져오거나 생성합니다.
+ */
+function getRecoveryQueue(context: ToolExecutionContext): IndexRecoveryQueue {
+  if (!context._recoveryQueue) {
+    context._recoveryQueue = new IndexRecoveryQueue(getSearchEngine, context);
+    context.logger.debug('IndexRecoveryQueue 인스턴스 생성됨');
+  }
+  return context._recoveryQueue;
+}
+
+/**
+ * MetricsCollector 인스턴스를 가져오거나 생성합니다.
+ */
+function getMetricsCollector(context: ToolExecutionContext): MetricsCollector {
+  if (!context._metricsCollector) {
+    context._metricsCollector = new MetricsCollector();
+    context.logger.debug('MetricsCollector 인스턴스 생성됨');
+  }
+  return context._metricsCollector;
+}
+
+/**
+ * 검색 엔진 및 복구 큐를 정리합니다.
+ * 서버 종료 시 또는 테스트 정리 시 리소스 정리를 위해 호출됩니다.
+ * @param context - 정리할 context (없으면 모든 context 정리 시도)
+ */
+export function cleanupSearchEngine(context?: ToolExecutionContext): void {
+  // 복구 큐 정리
+  if (context?._recoveryQueue) {
+    try {
+      context._recoveryQueue.cleanup();
+      delete context._recoveryQueue;
+      context.logger?.debug('IndexRecoveryQueue 정리 완료');
+    } catch {
+      // 정리 중 에러는 무시
+    }
+  }
+
+  // SearchEngine 정리
+  if (context?._searchEngineInstance) {
+    try {
+      context._searchEngineInstance.close();
+      delete context._searchEngineInstance;
+      context.logger?.debug('SearchEngine 인스턴스 정리 완료');
+    } catch {
+      // 정리 중 에러는 무시 (서버 종료 시이므로)
+    }
+  }
 }
 
 /**
@@ -216,7 +271,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
     const { title, content, category, tags, project, links } = input;
 
     try {
-      // Generate UID
+      // Generate UID (한 번만 생성하여 파일명과 노트 ID에 동일하게 사용)
       const uid = generateUid();
 
       // Generate file path
@@ -231,8 +286,9 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
         })
       );
 
-      // Create note object
+      // Create note object (생성된 UID를 명시적으로 전달하여 이중 생성 방지)
       const note = createNewNote(title, content, filePath, category, {
+        id: uid, // 파일명과 동일한 UID 사용
         tags,
         project,
         links: links || [],
@@ -241,12 +297,41 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
       // Save to file
       await saveNote(note);
 
+      // 검색 인덱스에 새 노트 추가
+      let indexingSuccess = true;
+      let indexingWarning = '';
+      try {
+        const searchEngine = getSearchEngine(context);
+        searchEngine.indexNote(note);
+        context.logger.debug(`[tool:create_note] 검색 인덱스 업데이트 완료`, {
+          uid,
+        });
+      } catch (indexError) {
+        // 인덱스 업데이트 실패 시 복구 큐에 추가
+        indexingSuccess = false;
+        indexingWarning =
+          '\n\n⚠️ 검색 인덱스 업데이트 실패: 백그라운드에서 재시도됩니다.';
+
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'index',
+          noteUid: uid,
+          noteFilePath: note.filePath,
+        });
+
+        context.logger.warn(
+          `[tool:create_note] 검색 인덱스 업데이트 실패, 복구 큐에 추가됨`,
+          { uid, error: indexError }
+        );
+      }
+
       context.logger.info(
         `[tool:create_note] 노트 생성 완료: ${uid}`,
         createLogEntry('info', 'create_note.success', {
           uid: note.frontMatter.id,
           title: note.frontMatter.title,
           filePath: note.filePath,
+          indexingSuccess,
         })
       );
 
@@ -262,7 +347,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
 **태그**: ${note.frontMatter.tags.join(', ') || '(없음)'}
 **프로젝트**: ${note.frontMatter.project || '(없음)'}
 **파일**: ${path.basename(note.filePath)}
-**생성 시간**: ${note.frontMatter.created}`,
+**생성 시간**: ${note.frontMatter.created}${indexingWarning}`,
           },
         ],
         _meta: {
@@ -274,6 +359,7 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
             project: note.frontMatter.project || null,
             filePath: note.filePath,
             created: note.frontMatter.created,
+            indexingSuccess,
           },
         },
       };
@@ -681,9 +767,16 @@ const updateNoteDefinition: ToolDefinition<typeof UpdateNoteInputSchema> = {
           uid,
         });
       } catch (indexError) {
-        // 인덱스 업데이트 실패는 경고만 로깅
+        // 인덱스 업데이트 실패 시 복구 큐에 추가
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'update',
+          noteUid: uid,
+          noteFilePath: updatedNote.filePath,
+        });
+
         context.logger.warn(
-          `[tool:update_note] 검색 인덱스 업데이트 실패 (무시됨)`,
+          `[tool:update_note] 검색 인덱스 업데이트 실패, 복구 큐에 추가됨`,
           { uid, error: indexError }
         );
       }
@@ -807,9 +900,15 @@ const deleteNoteDefinition: ToolDefinition<typeof DeleteNoteInputSchema> = {
           uid,
         });
       } catch (indexError) {
-        // 인덱스 삭제 실패는 경고만 로깅
+        // 인덱스 삭제 실패 시 복구 큐에 추가
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'delete',
+          noteUid: uid,
+        });
+
         context.logger.warn(
-          `[tool:delete_note] 검색 인덱스 삭제 실패 (무시됨)`,
+          `[tool:delete_note] 검색 인덱스 삭제 실패, 복구 큐에 추가됨`,
           { uid, error: indexError }
         );
       }
@@ -859,7 +958,256 @@ const deleteNoteDefinition: ToolDefinition<typeof DeleteNoteInputSchema> = {
 };
 
 /**
- * Tool Map (MVP 확장: 6 tools)
+ * Tool: get_vault_stats
+ */
+const getVaultStatsDefinition: ToolDefinition<typeof GetVaultStatsInputSchema> = {
+  name: 'get_vault_stats',
+  description: '볼트의 통계 정보를 조회합니다. 노트 수, 카테고리별 분포, 태그 사용 현황, 링크 통계 등을 제공합니다.',
+  schema: GetVaultStatsInputSchema,
+  async handler(
+    input: GetVaultStatsInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { includeCategories = true, includeTagStats = true, includeLinkStats = true } = input;
+
+    try {
+      context.logger.debug(`[tool:get_vault_stats] 통계 조회 시작`);
+
+      const notes = await loadAllNotes(context.vaultPath);
+
+      // 기본 통계
+      const totalNotes = notes.length;
+      const totalWords = notes.reduce((sum, note) => sum + note.content.split(/\s+/).length, 0);
+
+      // 카테고리별 통계
+      const categoryStats: Record<string, number> = {};
+      if (includeCategories) {
+        for (const note of notes) {
+          const category = note.frontMatter.category || 'Uncategorized';
+          categoryStats[category] = (categoryStats[category] || 0) + 1;
+        }
+      }
+
+      // 태그 통계
+      const tagStats: Record<string, number> = {};
+      if (includeTagStats) {
+        for (const note of notes) {
+          for (const tag of note.frontMatter.tags) {
+            tagStats[tag] = (tagStats[tag] || 0) + 1;
+          }
+        }
+      }
+
+      // 링크 통계
+      let linkStats = {};
+      if (includeLinkStats) {
+        const totalLinks = notes.reduce((sum, note) => sum + note.frontMatter.links.length, 0);
+        const orphanNotes = notes.filter(note =>
+          note.frontMatter.links.length === 0 &&
+          !notes.some(other => other.frontMatter.links.includes(note.frontMatter.id))
+        ).length;
+
+        linkStats = {
+          totalLinks,
+          orphanNotes,
+          avgLinksPerNote: totalNotes > 0 ? (totalLinks / totalNotes).toFixed(2) : '0',
+        };
+      }
+
+      const stats = {
+        totalNotes,
+        totalWords,
+        avgWordsPerNote: totalNotes > 0 ? Math.round(totalWords / totalNotes) : 0,
+        ...(includeCategories && { categoryStats }),
+        ...(includeTagStats && { tagStats, uniqueTags: Object.keys(tagStats).length }),
+        ...(includeLinkStats && { linkStats }),
+      };
+
+      context.logger.info(`[tool:get_vault_stats] 통계 조회 완료`, { totalNotes });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `## 볼트 통계
+
+**총 노트 수**: ${totalNotes}개
+**총 단어 수**: ${totalWords.toLocaleString()}개
+**노트당 평균 단어**: ${stats.avgWordsPerNote}개
+
+${includeCategories ? `### 카테고리별 분포
+${Object.entries(categoryStats).map(([k, v]) => `- ${k}: ${v}개`).join('\n')}` : ''}
+
+${includeTagStats ? `### 태그 통계
+- 고유 태그: ${Object.keys(tagStats).length}개
+- 상위 태그: ${Object.entries(tagStats).sort(([,a], [,b]) => b - a).slice(0, 5).map(([k, v]) => `${k}(${v})`).join(', ')}` : ''}
+
+${includeLinkStats ? `### 링크 통계
+- 총 링크: ${(linkStats as any).totalLinks}개
+- 고아 노트: ${(linkStats as any).orphanNotes}개
+- 노트당 평균 링크: ${(linkStats as any).avgLinksPerNote}개` : ''}`,
+          },
+        ],
+        _meta: { metadata: stats },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:get_vault_stats] 통계 조회 실패`, { error: errorMessage });
+      throw new MemoryMcpError(ErrorCode.FILE_READ_ERROR, `통계 조회 실패: ${errorMessage}`);
+    }
+  },
+};
+
+/**
+ * Tool: get_backlinks
+ */
+const getBacklinksDefinition: ToolDefinition<typeof GetBacklinksInputSchema> = {
+  name: 'get_backlinks',
+  description: '특정 노트를 참조하는 다른 노트들(백링크)을 찾습니다.',
+  schema: GetBacklinksInputSchema,
+  async handler(
+    input: GetBacklinksInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { uid, limit = 20 } = input;
+
+    try {
+      context.logger.debug(`[tool:get_backlinks] 백링크 조회 시작`, { uid });
+
+      // 대상 노트 확인
+      const targetNote = await findNoteByUid(uid, context.vaultPath);
+      if (!targetNote) {
+        throw new MemoryMcpError(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `UID에 해당하는 노트를 찾을 수 없습니다: ${uid}`,
+          { uid }
+        );
+      }
+
+      // 모든 노트 로드 후 백링크 찾기
+      const allNotes = await loadAllNotes(context.vaultPath);
+      const backlinks = allNotes
+        .filter(note => note.frontMatter.links.includes(uid))
+        .slice(0, limit)
+        .map(note => ({
+          uid: note.frontMatter.id,
+          title: note.frontMatter.title,
+          category: note.frontMatter.category,
+          snippet: note.content.slice(0, 150) + (note.content.length > 150 ? '...' : ''),
+        }));
+
+      context.logger.info(`[tool:get_backlinks] 백링크 조회 완료`, {
+        uid,
+        backlinksCount: backlinks.length
+      });
+
+      if (backlinks.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `**${targetNote.frontMatter.title}** (${uid})를 참조하는 노트가 없습니다.`,
+            },
+          ],
+          _meta: { metadata: { uid, backlinks: [], count: 0 } },
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `## ${targetNote.frontMatter.title} 백링크
+
+**${backlinks.length}개의 노트가 이 노트를 참조합니다:**
+
+${backlinks.map(bl => `### ${bl.title}
+- **UID**: ${bl.uid}
+- **카테고리**: ${bl.category}
+- **내용 미리보기**: ${bl.snippet}`).join('\n\n')}`,
+          },
+        ],
+        _meta: { metadata: { uid, backlinks, count: backlinks.length } },
+      };
+    } catch (error) {
+      if (error instanceof MemoryMcpError) {
+        throw error;
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:get_backlinks] 백링크 조회 실패`, { uid, error: errorMessage });
+      throw new MemoryMcpError(ErrorCode.FILE_READ_ERROR, `백링크 조회 실패: ${errorMessage}`);
+    }
+  },
+};
+
+/**
+ * Tool: get_metrics
+ */
+const getMetricsDefinition: ToolDefinition<typeof GetMetricsInputSchema> = {
+  name: 'get_metrics',
+  description: '시스템 메트릭을 조회합니다. 도구 실행 통계, 성능 지표 등을 제공합니다.',
+  schema: GetMetricsInputSchema,
+  async handler(
+    input: GetMetricsInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { format = 'json', reset = false } = input;
+
+    try {
+      context.logger.debug(`[tool:get_metrics] 메트릭 조회`, { format, reset });
+
+      const metrics = getMetricsCollector(context);
+      const summary = metrics.getSummary();
+
+      if (reset) {
+        metrics.reset();
+        context.logger.info(`[tool:get_metrics] 메트릭 초기화됨`);
+      }
+
+      if (format === 'prometheus') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: metrics.toPrometheusFormat(),
+            },
+          ],
+          _meta: { metadata: { format: 'prometheus', reset } },
+        };
+      }
+
+      // JSON format - return actual JSON for machine readability
+      if (reset) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(summary, null, 2) + '\n\n메트릭이 초기화되었습니다.',
+            },
+          ],
+          _meta: { metadata: { ...summary, reset } },
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(summary, null, 2),
+          },
+        ],
+        _meta: { metadata: { ...summary, reset } },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:get_metrics] 메트릭 조회 실패`, { error: errorMessage });
+      throw new MemoryMcpError(ErrorCode.MCP_TOOL_ERROR, `메트릭 조회 실패: ${errorMessage}`);
+    }
+  },
+};
+
+/**
+ * Tool Map (MVP 확장: 9 tools)
  */
 type RegisteredTool =
   | typeof searchMemoryDefinition
@@ -867,7 +1215,10 @@ type RegisteredTool =
   | typeof readNoteDefinition
   | typeof listNotesDefinition
   | typeof updateNoteDefinition
-  | typeof deleteNoteDefinition;
+  | typeof deleteNoteDefinition
+  | typeof getVaultStatsDefinition
+  | typeof getBacklinksDefinition
+  | typeof getMetricsDefinition;
 
 const toolMap: Record<ToolName, RegisteredTool> = {
   search_memory: searchMemoryDefinition,
@@ -876,6 +1227,9 @@ const toolMap: Record<ToolName, RegisteredTool> = {
   list_notes: listNotesDefinition,
   update_note: updateNoteDefinition,
   delete_note: deleteNoteDefinition,
+  get_vault_stats: getVaultStatsDefinition,
+  get_backlinks: getBacklinksDefinition,
+  get_metrics: getMetricsDefinition,
 };
 
 const toolDefinitions: RegisteredTool[] = [
@@ -885,6 +1239,9 @@ const toolDefinitions: RegisteredTool[] = [
   listNotesDefinition,
   updateNoteDefinition,
   deleteNoteDefinition,
+  getVaultStatsDefinition,
+  getBacklinksDefinition,
+  getMetricsDefinition,
 ];
 
 function toJsonSchema(definition: RegisteredTool): JsonSchema {
@@ -1004,7 +1361,10 @@ export async function executeTool(
     ...overrides,
   };
 
-  const startTime = Date.now();
+  // 메트릭 수집 시작
+  const metrics = getMetricsCollector(context);
+  const startTime = metrics.startToolExecution(definition.name);
+
   context.logger.debug(
     `[tool:${definition.name}] 실행 시작`,
     createLogEntry('debug', 'tool.start', {
@@ -1043,6 +1403,9 @@ export async function executeTool(
       })
     );
 
+    // 메트릭 수집 완료 (성공)
+    metrics.endToolExecution(definition.name, startTime, true);
+
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -1054,6 +1417,10 @@ export async function executeTool(
         error: error instanceof Error ? error.message : String(error),
       })
     );
+
+    // 메트릭 수집 완료 (실패)
+    const errorCode = error instanceof MemoryMcpError ? error.code : 'UNKNOWN';
+    metrics.endToolExecution(definition.name, startTime, false, errorCode);
 
     throw error;
   }
