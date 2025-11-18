@@ -50,6 +50,7 @@ import {
   DEFAULT_EXECUTION_POLICY,
   withExecutionPolicy,
 } from './execution-policy.js';
+import { IndexRecoveryQueue } from './index-recovery.js';
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
@@ -72,11 +73,34 @@ function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
 }
 
 /**
- * 검색 엔진 인스턴스를 정리합니다.
+ * IndexRecoveryQueue 인스턴스를 가져오거나 생성합니다.
+ */
+function getRecoveryQueue(context: ToolExecutionContext): IndexRecoveryQueue {
+  if (!context._recoveryQueue) {
+    context._recoveryQueue = new IndexRecoveryQueue(getSearchEngine, context);
+    context.logger.debug('IndexRecoveryQueue 인스턴스 생성됨');
+  }
+  return context._recoveryQueue;
+}
+
+/**
+ * 검색 엔진 및 복구 큐를 정리합니다.
  * 서버 종료 시 또는 테스트 정리 시 리소스 정리를 위해 호출됩니다.
  * @param context - 정리할 context (없으면 모든 context 정리 시도)
  */
 export function cleanupSearchEngine(context?: ToolExecutionContext): void {
+  // 복구 큐 정리
+  if (context?._recoveryQueue) {
+    try {
+      context._recoveryQueue.cleanup();
+      delete context._recoveryQueue;
+      context.logger?.debug('IndexRecoveryQueue 정리 완료');
+    } catch {
+      // 정리 중 에러는 무시
+    }
+  }
+
+  // SearchEngine 정리
   if (context?._searchEngineInstance) {
     try {
       context._searchEngineInstance.close();
@@ -265,12 +289,20 @@ const createNoteDefinition: ToolDefinition<typeof CreateNoteInputSchema> = {
           uid,
         });
       } catch (indexError) {
-        // 인덱스 업데이트 실패는 경고만 로깅 (노트 생성은 성공으로 처리)
+        // 인덱스 업데이트 실패 시 복구 큐에 추가
         indexingSuccess = false;
         indexingWarning =
-          '\n\n⚠️ 검색 인덱스 업데이트 실패: 검색 결과에 즉시 반영되지 않을 수 있습니다.';
+          '\n\n⚠️ 검색 인덱스 업데이트 실패: 백그라운드에서 재시도됩니다.';
+
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'index',
+          noteUid: uid,
+          note,
+        });
+
         context.logger.warn(
-          `[tool:create_note] 검색 인덱스 업데이트 실패 (무시됨)`,
+          `[tool:create_note] 검색 인덱스 업데이트 실패, 복구 큐에 추가됨`,
           { uid, error: indexError }
         );
       }
@@ -717,9 +749,16 @@ const updateNoteDefinition: ToolDefinition<typeof UpdateNoteInputSchema> = {
           uid,
         });
       } catch (indexError) {
-        // 인덱스 업데이트 실패는 경고만 로깅
+        // 인덱스 업데이트 실패 시 복구 큐에 추가
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'update',
+          noteUid: uid,
+          note: updatedNote,
+        });
+
         context.logger.warn(
-          `[tool:update_note] 검색 인덱스 업데이트 실패 (무시됨)`,
+          `[tool:update_note] 검색 인덱스 업데이트 실패, 복구 큐에 추가됨`,
           { uid, error: indexError }
         );
       }
@@ -843,9 +882,15 @@ const deleteNoteDefinition: ToolDefinition<typeof DeleteNoteInputSchema> = {
           uid,
         });
       } catch (indexError) {
-        // 인덱스 삭제 실패는 경고만 로깅
+        // 인덱스 삭제 실패 시 복구 큐에 추가
+        const recoveryQueue = getRecoveryQueue(context);
+        recoveryQueue.enqueue({
+          operation: 'delete',
+          noteUid: uid,
+        });
+
         context.logger.warn(
-          `[tool:delete_note] 검색 인덱스 삭제 실패 (무시됨)`,
+          `[tool:delete_note] 검색 인덱스 삭제 실패, 복구 큐에 추가됨`,
           { uid, error: indexError }
         );
       }

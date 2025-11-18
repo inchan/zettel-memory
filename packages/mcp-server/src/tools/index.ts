@@ -13,3 +13,8 @@ export {
   DEFAULT_EXECUTION_POLICY,
   withExecutionPolicy,
 } from './execution-policy.js';
+export {
+  IndexRecoveryQueue,
+  type IndexOperation,
+  type RecoveryQueueEntry,
+} from './index-recovery.js';

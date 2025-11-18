@@ -53,6 +53,12 @@ export function createTestContext(
  */
 export function cleanupTestContext(context: ToolExecutionContext): void {
   try {
+    // IndexRecoveryQueue 정리
+    if (context._recoveryQueue) {
+      context._recoveryQueue.cleanup();
+      delete context._recoveryQueue;
+    }
+
     // SearchEngine 인스턴스 정리 (SQLite 연결 종료)
     if (context._searchEngineInstance) {
       context._searchEngineInstance.close();
