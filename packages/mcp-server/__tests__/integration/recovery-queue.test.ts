@@ -59,8 +59,18 @@ describe('IndexRecoveryQueue Integration Tests', () => {
       expect(statusBefore.queueSize).toBe(1);
       expect(statusBefore.isProcessing).toBe(false);
 
-      // 5. 복구 처리 대기 (백그라운드 워커가 처리)
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // 5. 복구 처리 대기 (폴링 방식으로 완료 확인)
+      const maxWaitTime = 8000; // 최대 8초 대기
+      const pollInterval = 100; // 100ms 간격으로 확인
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const status = recoveryQueue.getStatus();
+        if (status.queueSize === 0) {
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
 
       // 6. 복구 완료 확인
       const statusAfter = recoveryQueue.getStatus();
