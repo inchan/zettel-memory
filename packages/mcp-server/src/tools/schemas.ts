@@ -162,6 +162,67 @@ export const ListNotesInputSchema = z
 
 export type ListNotesInput = z.infer<typeof ListNotesInputSchema>;
 
+// get_vault_stats - Get vault statistics
+export const GetVaultStatsInputSchema = z
+  .object({
+    includeCategories: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('카테고리별 통계 포함 여부'),
+    includeTagStats: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('태그 통계 포함 여부'),
+    includeLinkStats: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('링크 통계 포함 여부'),
+  })
+  .strict();
+
+export type GetVaultStatsInput = z.infer<typeof GetVaultStatsInputSchema>;
+
+// get_backlinks - Find notes linking to a specific note
+export const GetBacklinksInputSchema = z
+  .object({
+    uid: z
+      .string({
+        required_error: 'UID는 필수 입력값입니다.',
+      })
+      .min(1, 'UID는 최소 1자 이상이어야 합니다.'),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .optional(),
+  })
+  .strict();
+
+export type GetBacklinksInput = z.infer<typeof GetBacklinksInputSchema>;
+
+// get_metrics - Get system metrics
+export const GetMetricsInputSchema = z
+  .object({
+    format: z
+      .enum(['json', 'prometheus'])
+      .default('json')
+      .optional()
+      .describe('출력 형식'),
+    reset: z
+      .boolean()
+      .default(false)
+      .optional()
+      .describe('메트릭 초기화 여부'),
+  })
+  .strict();
+
+export type GetMetricsInput = z.infer<typeof GetMetricsInputSchema>;
+
 export const ToolNameSchema = z.enum([
   'search_memory',
   'create_note',
@@ -169,6 +230,9 @@ export const ToolNameSchema = z.enum([
   'update_note',
   'delete_note',
   'list_notes',
+  'get_vault_stats',
+  'get_backlinks',
+  'get_metrics',
 ]);
 
 export type ToolName = z.infer<typeof ToolNameSchema>;
