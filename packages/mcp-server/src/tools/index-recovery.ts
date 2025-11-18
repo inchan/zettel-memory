@@ -29,7 +29,9 @@ export class IndexRecoveryQueue {
   private workerInterval: NodeJS.Timeout | null = null;
 
   constructor(
-    private readonly getSearchEngine: (ctx: ToolExecutionContext) => IndexSearchEngine,
+    private readonly getSearchEngine: (
+      ctx: ToolExecutionContext
+    ) => IndexSearchEngine,
     private readonly context: ToolExecutionContext
   ) {}
 
@@ -94,7 +96,7 @@ export class IndexRecoveryQueue {
 
     try {
       const now = Date.now();
-      const entriesToProcess = this.queue.filter((entry) => {
+      const entriesToProcess = this.queue.filter(entry => {
         // 재시도 간격 계산 (exponential backoff)
         const delay = this.baseDelayMs * Math.pow(2, entry.retries);
         const nextRetryTime = entry.timestamp + delay;
@@ -165,12 +167,15 @@ export class IndexRecoveryQueue {
           reason: !isRetriable ? 'non-retriable error' : 'max retries exceeded',
         });
       } else {
-        this.context.logger.warn('[IndexRecoveryQueue] 작업 실패, 재시도 예정', {
-          operation: entry.operation,
-          noteUid: entry.noteUid,
-          retries: entry.retries,
-          nextRetryIn: `${this.baseDelayMs * Math.pow(2, entry.retries)}ms`,
-        });
+        this.context.logger.warn(
+          '[IndexRecoveryQueue] 작업 실패, 재시도 예정',
+          {
+            operation: entry.operation,
+            noteUid: entry.noteUid,
+            retries: entry.retries,
+            nextRetryIn: `${this.baseDelayMs * Math.pow(2, entry.retries)}ms`,
+          }
+        );
       }
     }
   }
@@ -208,7 +213,7 @@ export class IndexRecoveryQueue {
   private removeFromQueue(noteUid: string, operation: IndexOperation): void {
     const initialLength = this.queue.length;
     this.queue = this.queue.filter(
-      (e) => !(e.noteUid === noteUid && e.operation === operation)
+      e => !(e.noteUid === noteUid && e.operation === operation)
     );
 
     if (this.queue.length < initialLength) {
@@ -242,14 +247,17 @@ export class IndexRecoveryQueue {
     this.stopWorker();
 
     if (this.queue.length > 0) {
-      this.context.logger.warn('[IndexRecoveryQueue] 처리되지 않은 작업이 남아있음', {
-        remainingItems: this.queue.length,
-        items: this.queue.map(e => ({
-          operation: e.operation,
-          noteUid: e.noteUid,
-          retries: e.retries,
-        })),
-      });
+      this.context.logger.warn(
+        '[IndexRecoveryQueue] 처리되지 않은 작업이 남아있음',
+        {
+          remainingItems: this.queue.length,
+          items: this.queue.map(e => ({
+            operation: e.operation,
+            noteUid: e.noteUid,
+            retries: e.retries,
+          })),
+        }
+      );
     }
 
     this.queue = [];

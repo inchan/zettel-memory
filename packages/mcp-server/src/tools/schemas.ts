@@ -193,13 +193,7 @@ export const GetBacklinksInputSchema = z
         required_error: 'UID는 필수 입력값입니다.',
       })
       .min(1, 'UID는 최소 1자 이상이어야 합니다.'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .default(20)
-      .optional(),
+    limit: z.number().int().min(1).max(100).default(20).optional(),
   })
   .strict();
 
@@ -213,11 +207,7 @@ export const GetMetricsInputSchema = z
       .default('json')
       .optional()
       .describe('출력 형식'),
-    reset: z
-      .boolean()
-      .default(false)
-      .optional()
-      .describe('메트릭 초기화 여부'),
+    reset: z.boolean().default(false).optional().describe('메트릭 초기화 여부'),
   })
   .strict();
 

@@ -21,7 +21,9 @@ module.exports = {
     'prefer-const': 'error',
     'no-var': 'error',
     'no-undef': 'off',
-    'no-unused-vars': ['error', {
+    // Use TypeScript-aware version instead of base rule
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': ['error', {
       'argsIgnorePattern': '^_',
       'varsIgnorePattern': '^_',
       'ignoreRestSiblings': true
