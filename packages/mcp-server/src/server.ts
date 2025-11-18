@@ -161,9 +161,9 @@ class MemoryMCPServer {
   async shutdown(): Promise<void> {
     logger.info("Cleaning up resources...");
 
-    // 검색 엔진 캐시 정리 (SQLite 연결 포함)
-    cleanupSearchEngine();
-    logger.info("Search engine cache cleaned up");
+    // 검색 엔진 인스턴스 정리 (SQLite 연결 포함)
+    cleanupSearchEngine(this.toolContext);
+    logger.info("Search engine instance cleaned up");
 
     // MCP 서버 연결 종료
     await this.server.close();

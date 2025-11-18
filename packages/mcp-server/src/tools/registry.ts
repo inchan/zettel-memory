@@ -54,16 +54,12 @@ import {
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
 /**
- * IndexSearchEngine 인스턴스 캐시 (lazy initialization)
- */
-let searchEngineCache: IndexSearchEngine | null = null;
-
-/**
  * IndexSearchEngine 인스턴스를 가져오거나 생성합니다.
+ * DI 패턴: context에서 인스턴스를 관리하여 테스트 격리 및 리소스 정리 개선
  */
 function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
-  if (!searchEngineCache) {
-    searchEngineCache = new IndexSearchEngine({
+  if (!context._searchEngineInstance) {
+    context._searchEngineInstance = new IndexSearchEngine({
       dbPath: context.indexPath,
       tokenizer: 'unicode61',
       walMode: true,
@@ -72,18 +68,20 @@ function getSearchEngine(context: ToolExecutionContext): IndexSearchEngine {
       dbPath: context.indexPath,
     });
   }
-  return searchEngineCache;
+  return context._searchEngineInstance;
 }
 
 /**
- * 검색 엔진 캐시를 정리합니다.
- * 서버 종료 시 리소스 정리를 위해 호출됩니다.
+ * 검색 엔진 인스턴스를 정리합니다.
+ * 서버 종료 시 또는 테스트 정리 시 리소스 정리를 위해 호출됩니다.
+ * @param context - 정리할 context (없으면 모든 context 정리 시도)
  */
-export function cleanupSearchEngine(): void {
-  if (searchEngineCache) {
+export function cleanupSearchEngine(context?: ToolExecutionContext): void {
+  if (context?._searchEngineInstance) {
     try {
-      searchEngineCache.close();
-      searchEngineCache = null;
+      context._searchEngineInstance.close();
+      delete context._searchEngineInstance;
+      context.logger?.debug('SearchEngine 인스턴스 정리 완료');
     } catch {
       // 정리 중 에러는 무시 (서버 종료 시이므로)
     }

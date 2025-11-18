@@ -5,7 +5,6 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -13,7 +12,6 @@ import * as os from 'os';
 describe('MCP Protocol Compliance', () => {
   let client: Client;
   let transport: StdioClientTransport;
-  let serverProcess: ChildProcess;
   let testVaultPath: string;
   let testIndexPath: string;
 
@@ -22,21 +20,13 @@ describe('MCP Protocol Compliance', () => {
     testVaultPath = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-vault-'));
     testIndexPath = path.join(os.tmpdir(), `mcp-test-index-${Date.now()}.db`);
 
-    // 서버 프로세스 시작
+    // 서버 경로
     // __dirname: packages/mcp-server/__tests__/e2e
     // serverPath: packages/mcp-server/dist/cli.js
     const serverPath = path.join(__dirname, '..', '..', 'dist', 'cli.js');
 
-    serverProcess = spawn('node', [
-      serverPath,
-      '--vault', testVaultPath,
-      '--index', testIndexPath,
-      '--mode', 'dev'
-    ], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
     // Transport 및 Client 초기화
+    // Transport가 서버 프로세스를 자동으로 관리
     transport = new StdioClientTransport({
       command: 'node',
       args: [
@@ -57,7 +47,7 @@ describe('MCP Protocol Compliance', () => {
   }, 30000); // 30초 타임아웃
 
   afterAll(async () => {
-    // 정리
+    // Client 종료 (transport도 함께 정리됨)
     if (client) {
       try {
         await client.close();
@@ -66,14 +56,17 @@ describe('MCP Protocol Compliance', () => {
       }
     }
 
-    if (serverProcess) {
-      serverProcess.kill('SIGTERM');
-      // Wait for process to exit
-      await new Promise((resolve) => {
-        serverProcess.once('exit', resolve);
-        setTimeout(resolve, 2000); // Fallback timeout
-      });
+    // Transport 명시적 종료 (서버 프로세스 종료 포함)
+    if (transport) {
+      try {
+        await transport.close();
+      } catch (error) {
+        console.error('Error closing transport:', error);
+      }
     }
+
+    // 약간의 대기 시간 (프로세스 종료 완료 대기)
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // 테스트 파일 정리
     if (fs.existsSync(testVaultPath)) {

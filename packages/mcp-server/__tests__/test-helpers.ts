@@ -53,6 +53,13 @@ export function createTestContext(
  */
 export function cleanupTestContext(context: ToolExecutionContext): void {
   try {
+    // SearchEngine 인스턴스 정리 (SQLite 연결 종료)
+    if (context._searchEngineInstance) {
+      context._searchEngineInstance.close();
+      delete context._searchEngineInstance;
+    }
+
+    // 임시 디렉토리 정리
     const tempDir = path.dirname(context.vaultPath);
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
