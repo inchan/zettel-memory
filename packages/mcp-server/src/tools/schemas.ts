@@ -224,9 +224,7 @@ export const FindOrphanNotesInputSchema = z
       .default(100)
       .optional()
       .describe('반환할 최대 고아 노트 수'),
-    category: ParaCategorySchema.optional().describe(
-      '특정 카테고리로 필터링'
-    ),
+    category: ParaCategorySchema.optional().describe('특정 카테고리로 필터링'),
     sortBy: z
       .enum(['created', 'updated', 'title'])
       .default('updated')
@@ -250,9 +248,7 @@ export const FindStaleNotesInputSchema = z
       .min(1, 'staleDays는 최소 1 이상이어야 합니다.')
       .max(3650, 'staleDays는 최대 3650(10년)까지 허용됩니다.')
       .describe('이 일수 이상 업데이트되지 않은 노트를 찾습니다'),
-    category: ParaCategorySchema.optional().describe(
-      '특정 카테고리로 필터링'
-    ),
+    category: ParaCategorySchema.optional().describe('특정 카테고리로 필터링'),
     excludeArchives: z
       .boolean()
       .default(true)
