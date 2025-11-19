@@ -35,6 +35,11 @@ import {
   GetVaultStatsInputSchema,
   GetBacklinksInputSchema,
   GetMetricsInputSchema,
+  FindOrphanNotesInputSchema,
+  FindStaleNotesInputSchema,
+  GetOrganizationHealthInputSchema,
+  ArchiveNotesInputSchema,
+  SuggestLinksInputSchema,
   ToolName,
   ToolNameSchema,
   type CreateNoteInput,
@@ -46,6 +51,11 @@ import {
   type GetVaultStatsInput,
   type GetBacklinksInput,
   type GetMetricsInput,
+  type FindOrphanNotesInput,
+  type FindStaleNotesInput,
+  type GetOrganizationHealthInput,
+  type ArchiveNotesInput,
+  type SuggestLinksInput,
 } from './schemas.js';
 import {
   type ToolDefinition,
@@ -1275,7 +1285,966 @@ const getMetricsDefinition: ToolDefinition<typeof GetMetricsInputSchema> = {
 };
 
 /**
- * Tool Map (MVP 확장: 9 tools)
+ * Tool: find_orphan_notes
+ */
+const findOrphanNotesDefinition: ToolDefinition<
+  typeof FindOrphanNotesInputSchema
+> = {
+  name: 'find_orphan_notes',
+  description:
+    '아웃바운드 링크와 인바운드 링크가 모두 없는 고아 노트를 찾습니다. 노트 정리 및 조직화에 유용합니다.',
+  schema: FindOrphanNotesInputSchema,
+  async handler(
+    input: FindOrphanNotesInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const {
+      limit = 100,
+      category,
+      sortBy = 'updated',
+      sortOrder = 'desc',
+    } = input;
+
+    try {
+      context.logger.debug(`[tool:find_orphan_notes] 고아 노트 검색 시작`);
+
+      // 모든 노트 로드
+      const allNotes = await loadAllNotes(context.vaultPath, {
+        skipInvalid: true,
+        concurrency: 20,
+      });
+
+      // 링크 맵 생성 (아웃바운드 링크 추적)
+      const linkedFrom = new Set<string>(); // 다른 노트로 링크를 보내는 노트
+      const linkedTo = new Set<string>(); // 다른 노트로부터 링크를 받는 노트
+
+      for (const note of allNotes) {
+        const uid = note.frontMatter.id;
+        const links = note.frontMatter.links || [];
+
+        if (links.length > 0) {
+          linkedFrom.add(uid);
+          for (const link of links) {
+            linkedTo.add(link);
+          }
+        }
+      }
+
+      // 고아 노트 필터링 (아웃바운드도 없고 인바운드도 없는 노트)
+      let orphanNotes = allNotes.filter(note => {
+        const uid = note.frontMatter.id;
+        return !linkedFrom.has(uid) && !linkedTo.has(uid);
+      });
+
+      // 카테고리 필터 적용
+      if (category) {
+        orphanNotes = orphanNotes.filter(
+          note => note.frontMatter.category === category
+        );
+      }
+
+      // 정렬
+      orphanNotes.sort((a: any, b: any) => {
+        let aValue: string;
+        let bValue: string;
+
+        switch (sortBy) {
+          case 'created':
+            aValue = a.frontMatter.created;
+            bValue = b.frontMatter.created;
+            break;
+          case 'updated':
+            aValue = a.frontMatter.updated;
+            bValue = b.frontMatter.updated;
+            break;
+          case 'title':
+            aValue = a.frontMatter.title.toLowerCase();
+            bValue = b.frontMatter.title.toLowerCase();
+            break;
+          default:
+            aValue = a.frontMatter.updated;
+            bValue = b.frontMatter.updated;
+        }
+
+        const comparison = aValue.localeCompare(bValue);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+
+      const totalCount = orphanNotes.length;
+      const paginatedNotes = orphanNotes.slice(0, limit);
+
+      // 결과가 없는 경우
+      if (paginatedNotes.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `## 고아 노트 검색 결과
+
+고아 노트가 없습니다.${category ? `\n\n카테고리 필터: ${category}` : ''}
+
+모든 노트가 잘 연결되어 있습니다! 🎉`,
+            },
+          ],
+          _meta: {
+            metadata: {
+              totalCount: 0,
+              returnedCount: 0,
+              category: category ?? null,
+            },
+          },
+        };
+      }
+
+      // 결과 포맷팅
+      const notesList = paginatedNotes.map((note: any, index: number) => {
+        return `${index + 1}. **${note.frontMatter.title}**
+   - ID: \`${note.frontMatter.id}\`
+   - 카테고리: ${note.frontMatter.category || '(없음)'}
+   - 태그: ${note.frontMatter.tags.join(', ') || '(없음)'}
+   - 생성: ${note.frontMatter.created}
+   - 수정: ${note.frontMatter.updated}`;
+      });
+
+      const responseText = `## 고아 노트 검색 결과
+
+**${totalCount}개의 고아 노트** 중 ${paginatedNotes.length}개 표시${category ? `\n카테고리 필터: ${category}` : ''}
+정렬: ${sortBy} (${sortOrder})
+
+---
+
+${notesList.join('\n\n')}${totalCount > limit ? `\n\n⋯ 더 많은 결과가 있습니다. limit를 늘려서 확인하세요.` : ''}
+
+---
+
+💡 **팁**: 고아 노트는 다른 노트와 연결하거나, 더 이상 필요 없다면 아카이브하는 것을 고려하세요.`;
+
+      context.logger.info(`[tool:find_orphan_notes] 고아 노트 검색 완료`, {
+        totalCount,
+        returnedCount: paginatedNotes.length,
+      });
+
+      return {
+        content: [{ type: 'text', text: responseText }],
+        _meta: {
+          metadata: {
+            totalCount,
+            returnedCount: paginatedNotes.length,
+            category: category ?? null,
+            sortBy,
+            sortOrder,
+            orphanNotes: paginatedNotes.map((note: any) => ({
+              uid: note.frontMatter.id,
+              title: note.frontMatter.title,
+              category: note.frontMatter.category,
+              tags: note.frontMatter.tags,
+              created: note.frontMatter.created,
+              updated: note.frontMatter.updated,
+            })),
+          },
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      context.logger.error(`[tool:find_orphan_notes] 고아 노트 검색 실패`, {
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `고아 노트 검색 실패: ${errorMessage}`,
+        { category }
+      );
+    }
+  },
+};
+
+/**
+ * Tool: find_stale_notes
+ */
+const findStaleNotesDefinition: ToolDefinition<
+  typeof FindStaleNotesInputSchema
+> = {
+  name: 'find_stale_notes',
+  description:
+    '지정된 기간 동안 업데이트되지 않은 오래된 노트를 찾습니다.',
+  schema: FindStaleNotesInputSchema,
+  async handler(
+    input: FindStaleNotesInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const {
+      staleDays,
+      category,
+      excludeArchives = true,
+      limit = 100,
+      sortBy = 'updated',
+      sortOrder = 'asc',
+    } = input;
+
+    try {
+      context.logger.debug(`[tool:find_stale_notes] 오래된 노트 검색 시작`, {
+        staleDays,
+      });
+
+      // 기준 날짜 계산
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - staleDays);
+      const cutoffDateStr = cutoffDate.toISOString();
+
+      // 모든 노트 로드
+      const allNotes = await loadAllNotes(context.vaultPath, {
+        skipInvalid: true,
+        concurrency: 20,
+      });
+
+      // 오래된 노트 필터링
+      let staleNotes = allNotes.filter(note => {
+        const updatedDate = note.frontMatter.updated;
+        return updatedDate < cutoffDateStr;
+      });
+
+      // Archives 제외
+      if (excludeArchives) {
+        staleNotes = staleNotes.filter(
+          note => note.frontMatter.category !== 'Archives'
+        );
+      }
+
+      // 카테고리 필터 적용
+      if (category) {
+        staleNotes = staleNotes.filter(
+          note => note.frontMatter.category === category
+        );
+      }
+
+      // 정렬
+      staleNotes.sort((a: any, b: any) => {
+        let aValue: string;
+        let bValue: string;
+
+        switch (sortBy) {
+          case 'created':
+            aValue = a.frontMatter.created;
+            bValue = b.frontMatter.created;
+            break;
+          case 'updated':
+            aValue = a.frontMatter.updated;
+            bValue = b.frontMatter.updated;
+            break;
+          case 'title':
+            aValue = a.frontMatter.title.toLowerCase();
+            bValue = b.frontMatter.title.toLowerCase();
+            break;
+          default:
+            aValue = a.frontMatter.updated;
+            bValue = b.frontMatter.updated;
+        }
+
+        const comparison = aValue.localeCompare(bValue);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+
+      const totalCount = staleNotes.length;
+      const paginatedNotes = staleNotes.slice(0, limit);
+
+      // 결과가 없는 경우
+      if (paginatedNotes.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `## 오래된 노트 검색 결과
+
+${staleDays}일 이상 업데이트되지 않은 노트가 없습니다.${category ? `\n\n카테고리 필터: ${category}` : ''}${excludeArchives ? '\n\nArchives 제외됨' : ''}
+
+모든 노트가 최신 상태입니다! ✅`,
+            },
+          ],
+          _meta: {
+            metadata: {
+              totalCount: 0,
+              returnedCount: 0,
+              staleDays,
+              category: category ?? null,
+              excludeArchives,
+            },
+          },
+        };
+      }
+
+      // 일수 계산 헬퍼
+      const getDaysAgo = (dateStr: string): number => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - date.getTime());
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      };
+
+      // 결과 포맷팅
+      const notesList = paginatedNotes.map((note: any, index: number) => {
+        const daysAgo = getDaysAgo(note.frontMatter.updated);
+        return `${index + 1}. **${note.frontMatter.title}** (${daysAgo}일 전)
+   - ID: \`${note.frontMatter.id}\`
+   - 카테고리: ${note.frontMatter.category || '(없음)'}
+   - 태그: ${note.frontMatter.tags.join(', ') || '(없음)'}
+   - 마지막 수정: ${note.frontMatter.updated}`;
+      });
+
+      const responseText = `## 오래된 노트 검색 결과
+
+**${totalCount}개의 오래된 노트** (${staleDays}일 이상 미업데이트) 중 ${paginatedNotes.length}개 표시${category ? `\n카테고리 필터: ${category}` : ''}${excludeArchives ? '\nArchives 제외됨' : ''}
+정렬: ${sortBy} (${sortOrder})
+
+---
+
+${notesList.join('\n\n')}${totalCount > limit ? `\n\n⋯ 더 많은 결과가 있습니다. limit를 늘려서 확인하세요.` : ''}
+
+---
+
+💡 **팁**: 오래된 노트는 검토 후 업데이트하거나, 더 이상 필요 없다면 아카이브하는 것을 고려하세요.`;
+
+      context.logger.info(`[tool:find_stale_notes] 오래된 노트 검색 완료`, {
+        totalCount,
+        returnedCount: paginatedNotes.length,
+        staleDays,
+      });
+
+      return {
+        content: [{ type: 'text', text: responseText }],
+        _meta: {
+          metadata: {
+            totalCount,
+            returnedCount: paginatedNotes.length,
+            staleDays,
+            category: category ?? null,
+            excludeArchives,
+            sortBy,
+            sortOrder,
+            staleNotes: paginatedNotes.map((note: any) => ({
+              uid: note.frontMatter.id,
+              title: note.frontMatter.title,
+              category: note.frontMatter.category,
+              tags: note.frontMatter.tags,
+              updated: note.frontMatter.updated,
+              daysAgo: getDaysAgo(note.frontMatter.updated),
+            })),
+          },
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      context.logger.error(`[tool:find_stale_notes] 오래된 노트 검색 실패`, {
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `오래된 노트 검색 실패: ${errorMessage}`,
+        { staleDays, category }
+      );
+    }
+  },
+};
+
+/**
+ * Tool: get_organization_health
+ */
+const getOrganizationHealthDefinition: ToolDefinition<
+  typeof GetOrganizationHealthInputSchema
+> = {
+  name: 'get_organization_health',
+  description:
+    '볼트의 조직화 건강 상태를 분석합니다. 고아 노트 비율, 카테고리 균형, 오래된 노트 등을 평가합니다.',
+  schema: GetOrganizationHealthInputSchema,
+  async handler(
+    input: GetOrganizationHealthInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { includeDetails = true, includeRecommendations = true } = input;
+
+    try {
+      context.logger.debug(`[tool:get_organization_health] 건강 상태 분석 시작`);
+
+      // 모든 노트 로드
+      const allNotes = await loadAllNotes(context.vaultPath, {
+        skipInvalid: true,
+        concurrency: 20,
+      });
+
+      const totalNotes = allNotes.length;
+
+      if (totalNotes === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `## 볼트 조직 건강 상태
+
+볼트가 비어 있습니다. 노트를 생성하여 시작하세요!`,
+            },
+          ],
+          _meta: {
+            metadata: {
+              totalNotes: 0,
+              healthScore: 100,
+            },
+          },
+        };
+      }
+
+      // 링크 분석
+      const linkedFrom = new Set<string>();
+      const linkedTo = new Set<string>();
+
+      for (const note of allNotes) {
+        const uid = note.frontMatter.id;
+        const links = note.frontMatter.links || [];
+
+        if (links.length > 0) {
+          linkedFrom.add(uid);
+          for (const link of links) {
+            linkedTo.add(link);
+          }
+        }
+      }
+
+      // 고아 노트 계산
+      const orphanNotes = allNotes.filter(note => {
+        const uid = note.frontMatter.id;
+        return !linkedFrom.has(uid) && !linkedTo.has(uid);
+      });
+      const orphanCount = orphanNotes.length;
+      const orphanRatio = totalNotes > 0 ? orphanCount / totalNotes : 0;
+
+      // 오래된 노트 계산 (30일 이상)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoffDateStr = thirtyDaysAgo.toISOString();
+
+      const staleNotes = allNotes.filter(
+        note =>
+          note.frontMatter.updated < cutoffDateStr &&
+          note.frontMatter.category !== 'Archives'
+      );
+      const staleCount = staleNotes.length;
+      const staleRatio = totalNotes > 0 ? staleCount / totalNotes : 0;
+
+      // 카테고리 분포
+      const categoryStats: Record<string, number> = {};
+      for (const note of allNotes) {
+        const category = note.frontMatter.category || 'Uncategorized';
+        categoryStats[category] = (categoryStats[category] || 0) + 1;
+      }
+
+      // 카테고리 균형 점수 (엔트로피 기반)
+      const categoryCount = Object.keys(categoryStats).length;
+      let categoryBalanceScore = 100;
+      if (categoryCount > 1) {
+        const counts = Object.values(categoryStats);
+        const entropy = counts.reduce((sum, count) => {
+          const p = count / totalNotes;
+          return sum - (p > 0 ? p * Math.log2(p) : 0);
+        }, 0);
+        const maxEntropy = Math.log2(categoryCount);
+        categoryBalanceScore = Math.round((entropy / maxEntropy) * 100);
+      }
+
+      // 건강 점수 계산 (0-100)
+      const orphanPenalty = Math.min(orphanRatio * 100, 40); // 최대 40점 감점
+      const stalePenalty = Math.min(staleRatio * 50, 30); // 최대 30점 감점
+      const balanceBonus = Math.max(0, (categoryBalanceScore - 50) / 2); // 균형 보너스
+
+      let healthScore = Math.round(100 - orphanPenalty - stalePenalty + balanceBonus);
+      healthScore = Math.max(0, Math.min(100, healthScore));
+
+      // 건강 등급
+      let healthGrade: string;
+      if (healthScore >= 90) healthGrade = 'A (우수)';
+      else if (healthScore >= 75) healthGrade = 'B (양호)';
+      else if (healthScore >= 60) healthGrade = 'C (보통)';
+      else if (healthScore >= 40) healthGrade = 'D (개선 필요)';
+      else healthGrade = 'F (심각)';
+
+      // 권장사항 생성
+      const recommendations: string[] = [];
+      if (includeRecommendations) {
+        if (orphanRatio > 0.3) {
+          recommendations.push(
+            `🔗 고아 노트가 ${orphanCount}개 (${Math.round(orphanRatio * 100)}%) 있습니다. 다른 노트와 연결하거나 아카이브하세요.`
+          );
+        } else if (orphanRatio > 0.1) {
+          recommendations.push(
+            `📝 고아 노트 ${orphanCount}개를 검토하고 연결하는 것을 고려하세요.`
+          );
+        }
+
+        if (staleRatio > 0.3) {
+          recommendations.push(
+            `⏰ 30일 이상 미업데이트 노트가 ${staleCount}개 (${Math.round(staleRatio * 100)}%) 있습니다. 검토가 필요합니다.`
+          );
+        } else if (staleRatio > 0.15) {
+          recommendations.push(
+            `📅 오래된 노트 ${staleCount}개를 검토하세요.`
+          );
+        }
+
+        if (categoryBalanceScore < 50) {
+          recommendations.push(
+            `📂 카테고리 분포가 불균형합니다. PARA 원칙에 따라 노트를 재분류하세요.`
+          );
+        }
+
+        if (recommendations.length === 0) {
+          recommendations.push(`✅ 볼트가 잘 정리되어 있습니다! 계속 유지하세요.`);
+        }
+      }
+
+      // 응답 구성
+      let responseText = `## 볼트 조직 건강 상태
+
+### 건강 점수: ${healthScore}/100 (${healthGrade})
+
+**기본 통계**:
+- 총 노트: ${totalNotes}개
+- 고아 노트: ${orphanCount}개 (${Math.round(orphanRatio * 100)}%)
+- 오래된 노트 (30일+): ${staleCount}개 (${Math.round(staleRatio * 100)}%)
+- 카테고리 균형: ${categoryBalanceScore}/100`;
+
+      if (includeDetails) {
+        responseText += `
+
+### 카테고리 분포
+${Object.entries(categoryStats)
+  .sort(([, a], [, b]) => b - a)
+  .map(([cat, count]) => `- ${cat}: ${count}개 (${Math.round((count / totalNotes) * 100)}%)`)
+  .join('\n')}`;
+      }
+
+      if (includeRecommendations && recommendations.length > 0) {
+        responseText += `
+
+### 권장사항
+${recommendations.map(r => `- ${r}`).join('\n')}`;
+      }
+
+      context.logger.info(`[tool:get_organization_health] 건강 상태 분석 완료`, {
+        healthScore,
+        totalNotes,
+        orphanCount,
+        staleCount,
+      });
+
+      return {
+        content: [{ type: 'text', text: responseText }],
+        _meta: {
+          metadata: {
+            healthScore,
+            healthGrade,
+            totalNotes,
+            orphanCount,
+            orphanRatio: Math.round(orphanRatio * 100),
+            staleCount,
+            staleRatio: Math.round(staleRatio * 100),
+            categoryBalanceScore,
+            categoryStats,
+            recommendations,
+          },
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      context.logger.error(
+        `[tool:get_organization_health] 건강 상태 분석 실패`,
+        { error: errorMessage }
+      );
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `건강 상태 분석 실패: ${errorMessage}`
+      );
+    }
+  },
+};
+
+/**
+ * Tool: archive_notes
+ */
+const archiveNotesDefinition: ToolDefinition<typeof ArchiveNotesInputSchema> = {
+  name: 'archive_notes',
+  description:
+    '여러 노트를 한 번에 Archives 카테고리로 이동합니다. dryRun 모드로 미리보기할 수 있습니다.',
+  schema: ArchiveNotesInputSchema,
+  async handler(
+    input: ArchiveNotesInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { uids, dryRun = false, reason } = input;
+    // Note: confirm is validated by Zod schema refinement
+
+    try {
+      context.logger.debug(`[tool:archive_notes] 아카이브 시작`, {
+        count: uids.length,
+        dryRun,
+      });
+
+      // 노트 찾기 및 검증
+      const results: Array<{
+        uid: string;
+        title: string;
+        previousCategory: string;
+        status: 'success' | 'skipped' | 'not_found';
+        message: string;
+      }> = [];
+
+      const notesToArchive: Array<{ note: any; uid: string }> = [];
+
+      for (const uid of uids) {
+        const note = await findNoteByUid(uid as any, context.vaultPath);
+
+        if (!note) {
+          results.push({
+            uid,
+            title: '(찾을 수 없음)',
+            previousCategory: '',
+            status: 'not_found',
+            message: '노트를 찾을 수 없습니다',
+          });
+          continue;
+        }
+
+        if (note.frontMatter.category === 'Archives') {
+          results.push({
+            uid,
+            title: note.frontMatter.title,
+            previousCategory: 'Archives',
+            status: 'skipped',
+            message: '이미 Archives 카테고리입니다',
+          });
+          continue;
+        }
+
+        notesToArchive.push({ note, uid });
+        results.push({
+          uid,
+          title: note.frontMatter.title,
+          previousCategory: note.frontMatter.category || '(없음)',
+          status: 'success',
+          message: dryRun ? '아카이브 예정' : '아카이브 완료',
+        });
+      }
+
+      // dryRun이 아닐 경우 실제 아카이브 수행
+      if (!dryRun && notesToArchive.length > 0) {
+        for (const { note, uid } of notesToArchive) {
+          const updatedFrontMatter = updateFrontMatter(note.frontMatter, {
+            category: 'Archives' as any,
+          });
+
+          const updatedNote = {
+            ...note,
+            frontMatter: updatedFrontMatter,
+          };
+
+          await saveNote(updatedNote);
+
+          // 검색 인덱스 업데이트
+          try {
+            const searchEngine = getSearchEngine(context);
+            searchEngine.indexNote(updatedNote);
+          } catch (indexError) {
+            const recoveryQueue = getRecoveryQueue(context);
+            recoveryQueue.enqueue({
+              operation: 'update',
+              noteUid: uid,
+              noteFilePath: updatedNote.filePath,
+            });
+          }
+        }
+      }
+
+      // 결과 집계
+      const successCount = results.filter(r => r.status === 'success').length;
+      const skippedCount = results.filter(r => r.status === 'skipped').length;
+      const notFoundCount = results.filter(r => r.status === 'not_found').length;
+
+      // 응답 구성
+      let responseText = `## 노트 아카이브 ${dryRun ? '(미리보기)' : '완료'}
+
+**요약**:
+- 총 요청: ${uids.length}개
+- ${dryRun ? '아카이브 예정' : '아카이브 완료'}: ${successCount}개
+- 건너뜀 (이미 Archives): ${skippedCount}개
+- 찾을 수 없음: ${notFoundCount}개${reason ? `\n- 이유: ${reason}` : ''}
+
+---
+
+`;
+
+      // 결과 목록
+      results.forEach((result, index) => {
+        const statusIcon =
+          result.status === 'success'
+            ? '✅'
+            : result.status === 'skipped'
+              ? '⏭️'
+              : '❌';
+        responseText += `${index + 1}. ${statusIcon} **${result.title}**
+   - UID: \`${result.uid}\`
+   - 이전 카테고리: ${result.previousCategory}
+   - 상태: ${result.message}
+
+`;
+      });
+
+      if (dryRun) {
+        responseText += `
+---
+
+💡 실제로 아카이브하려면 \`dryRun: false\`와 \`confirm: true\`를 설정하세요.`;
+      }
+
+      context.logger.info(`[tool:archive_notes] 아카이브 ${dryRun ? '미리보기' : '완료'}`, {
+        total: uids.length,
+        success: successCount,
+        skipped: skippedCount,
+        notFound: notFoundCount,
+      });
+
+      return {
+        content: [{ type: 'text', text: responseText }],
+        _meta: {
+          metadata: {
+            dryRun,
+            total: uids.length,
+            success: successCount,
+            skipped: skippedCount,
+            notFound: notFoundCount,
+            reason: reason ?? null,
+            results,
+          },
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      context.logger.error(`[tool:archive_notes] 아카이브 실패`, {
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `노트 아카이브 실패: ${errorMessage}`,
+        { uids }
+      );
+    }
+  },
+};
+
+/**
+ * Tool: suggest_links
+ */
+const suggestLinksDefinition: ToolDefinition<typeof SuggestLinksInputSchema> = {
+  name: 'suggest_links',
+  description:
+    '특정 노트에 대한 잠재적 링크를 제안합니다. 키워드, 태그, 카테고리 유사성을 기반으로 합니다.',
+  schema: SuggestLinksInputSchema,
+  async handler(
+    input: SuggestLinksInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const { uid, limit = 10, minScore = 0.3, excludeExisting = true } = input;
+
+    try {
+      context.logger.debug(`[tool:suggest_links] 링크 제안 시작`, { uid });
+
+      // 대상 노트 찾기
+      const targetNote = await findNoteByUid(uid as any, context.vaultPath);
+      if (!targetNote) {
+        throw new MemoryMcpError(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `UID에 해당하는 노트를 찾을 수 없습니다: ${uid}`,
+          { uid }
+        );
+      }
+
+      // 모든 노트 로드
+      const allNotes = await loadAllNotes(context.vaultPath, {
+        skipInvalid: true,
+        concurrency: 20,
+      });
+
+      // 기존 링크 집합
+      const existingLinks = new Set(targetNote.frontMatter.links || []);
+
+      // 점수 계산을 위한 헬퍼 함수
+      const calculateScore = (note: any): number => {
+        if (note.frontMatter.id === uid) return 0;
+        if (excludeExisting && existingLinks.has(note.frontMatter.id)) return 0;
+
+        let score = 0;
+
+        // 1. 태그 유사성 (최대 0.4)
+        const targetTags = new Set(targetNote.frontMatter.tags || []);
+        const noteTags = note.frontMatter.tags || [];
+        if (targetTags.size > 0 && noteTags.length > 0) {
+          const commonTags = noteTags.filter((t: string) => targetTags.has(t)).length;
+          const tagScore = commonTags / Math.max(targetTags.size, noteTags.length);
+          score += tagScore * 0.4;
+        }
+
+        // 2. 카테고리 일치 (0.2)
+        if (
+          targetNote.frontMatter.category &&
+          note.frontMatter.category === targetNote.frontMatter.category
+        ) {
+          score += 0.2;
+        }
+
+        // 3. 프로젝트 일치 (0.2)
+        if (
+          targetNote.frontMatter.project &&
+          note.frontMatter.project === targetNote.frontMatter.project
+        ) {
+          score += 0.2;
+        }
+
+        // 4. 제목/내용 키워드 매칭 (최대 0.2)
+        const targetWords = new Set(
+          (targetNote.frontMatter.title + ' ' + targetNote.content)
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w: string) => w.length > 3)
+        );
+        const noteWords = (note.frontMatter.title + ' ' + note.content)
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w: string) => w.length > 3);
+
+        if (targetWords.size > 0 && noteWords.length > 0) {
+          const commonWords = noteWords.filter((w: string) => targetWords.has(w)).length;
+          const wordScore = Math.min(commonWords / 10, 1);
+          score += wordScore * 0.2;
+        }
+
+        return score;
+      };
+
+      // 점수 계산 및 필터링
+      const suggestions = allNotes
+        .map(note => ({
+          uid: note.frontMatter.id,
+          title: note.frontMatter.title,
+          category: note.frontMatter.category,
+          tags: note.frontMatter.tags,
+          score: calculateScore(note),
+        }))
+        .filter(s => s.score >= minScore)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+
+      // 결과가 없는 경우
+      if (suggestions.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `## 링크 제안
+
+**${targetNote.frontMatter.title}**에 대한 링크 제안이 없습니다.
+
+최소 점수: ${minScore}
+${excludeExisting ? '기존 링크 제외됨' : ''}
+
+💡 태그를 추가하거나 관련 노트를 더 작성해보세요.`,
+            },
+          ],
+          _meta: {
+            metadata: {
+              targetUid: uid,
+              targetTitle: targetNote.frontMatter.title,
+              totalSuggestions: 0,
+              minScore,
+              excludeExisting,
+            },
+          },
+        };
+      }
+
+      // 결과 포맷팅
+      const suggestionsList = suggestions.map((s, index) => {
+        const commonTags = (s.tags || []).filter((t: string) =>
+          (targetNote.frontMatter.tags || []).includes(t)
+        );
+        return `${index + 1}. **${s.title}** (점수: ${(s.score * 100).toFixed(0)}%)
+   - UID: \`${s.uid}\`
+   - 카테고리: ${s.category || '(없음)'}
+   - 공통 태그: ${commonTags.length > 0 ? commonTags.join(', ') : '(없음)'}`;
+      });
+
+      const responseText = `## 링크 제안
+
+**${targetNote.frontMatter.title}**에 대한 ${suggestions.length}개의 링크 제안
+
+최소 점수: ${minScore}
+${excludeExisting ? '기존 링크 제외됨' : ''}
+
+---
+
+${suggestionsList.join('\n\n')}
+
+---
+
+💡 제안된 노트를 검토하고 \`update_note\`로 링크를 추가하세요.`;
+
+      context.logger.info(`[tool:suggest_links] 링크 제안 완료`, {
+        targetUid: uid,
+        suggestions: suggestions.length,
+      });
+
+      return {
+        content: [{ type: 'text', text: responseText }],
+        _meta: {
+          metadata: {
+            targetUid: uid,
+            targetTitle: targetNote.frontMatter.title,
+            totalSuggestions: suggestions.length,
+            minScore,
+            excludeExisting,
+            suggestions,
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof MemoryMcpError) {
+        throw error;
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      context.logger.error(`[tool:suggest_links] 링크 제안 실패`, {
+        error: errorMessage,
+      });
+
+      throw new MemoryMcpError(
+        ErrorCode.STORAGE_ERROR,
+        `링크 제안 실패: ${errorMessage}`,
+        { uid }
+      );
+    }
+  },
+};
+
+/**
+ * Tool Map (확장: 14 tools)
  */
 type RegisteredTool =
   | typeof searchMemoryDefinition
@@ -1286,7 +2255,12 @@ type RegisteredTool =
   | typeof deleteNoteDefinition
   | typeof getVaultStatsDefinition
   | typeof getBacklinksDefinition
-  | typeof getMetricsDefinition;
+  | typeof getMetricsDefinition
+  | typeof findOrphanNotesDefinition
+  | typeof findStaleNotesDefinition
+  | typeof getOrganizationHealthDefinition
+  | typeof archiveNotesDefinition
+  | typeof suggestLinksDefinition;
 
 const toolMap: Record<ToolName, RegisteredTool> = {
   search_memory: searchMemoryDefinition,
@@ -1298,6 +2272,12 @@ const toolMap: Record<ToolName, RegisteredTool> = {
   get_vault_stats: getVaultStatsDefinition,
   get_backlinks: getBacklinksDefinition,
   get_metrics: getMetricsDefinition,
+  // Organization tools
+  find_orphan_notes: findOrphanNotesDefinition,
+  find_stale_notes: findStaleNotesDefinition,
+  get_organization_health: getOrganizationHealthDefinition,
+  archive_notes: archiveNotesDefinition,
+  suggest_links: suggestLinksDefinition,
 };
 
 const toolDefinitions: RegisteredTool[] = [
@@ -1310,6 +2290,12 @@ const toolDefinitions: RegisteredTool[] = [
   getVaultStatsDefinition,
   getBacklinksDefinition,
   getMetricsDefinition,
+  // Organization tools
+  findOrphanNotesDefinition,
+  findStaleNotesDefinition,
+  getOrganizationHealthDefinition,
+  archiveNotesDefinition,
+  suggestLinksDefinition,
 ];
 
 function toJsonSchema(definition: RegisteredTool): JsonSchema {

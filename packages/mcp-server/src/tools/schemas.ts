@@ -213,6 +213,164 @@ export const GetMetricsInputSchema = z
 
 export type GetMetricsInput = z.infer<typeof GetMetricsInputSchema>;
 
+// find_orphan_notes - Find notes with no incoming or outgoing links
+export const FindOrphanNotesInputSchema = z
+  .object({
+    limit: z
+      .number()
+      .int('limit는 정수여야 합니다.')
+      .min(1, 'limit는 최소 1 이상이어야 합니다.')
+      .max(1000, 'limit는 최대 1000까지 허용됩니다.')
+      .default(100)
+      .optional()
+      .describe('반환할 최대 고아 노트 수'),
+    category: ParaCategorySchema.optional().describe(
+      '특정 카테고리로 필터링'
+    ),
+    sortBy: z
+      .enum(['created', 'updated', 'title'])
+      .default('updated')
+      .optional()
+      .describe('정렬 기준'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc').optional(),
+  })
+  .strict();
+
+export type FindOrphanNotesInput = z.infer<typeof FindOrphanNotesInputSchema>;
+
+// find_stale_notes - Find notes not updated for a specified period
+export const FindStaleNotesInputSchema = z
+  .object({
+    staleDays: z
+      .number({
+        required_error: 'staleDays는 필수 입력값입니다.',
+        invalid_type_error: 'staleDays는 숫자여야 합니다.',
+      })
+      .int('staleDays는 정수여야 합니다.')
+      .min(1, 'staleDays는 최소 1 이상이어야 합니다.')
+      .max(3650, 'staleDays는 최대 3650(10년)까지 허용됩니다.')
+      .describe('이 일수 이상 업데이트되지 않은 노트를 찾습니다'),
+    category: ParaCategorySchema.optional().describe(
+      '특정 카테고리로 필터링'
+    ),
+    excludeArchives: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('Archives 카테고리 제외 여부'),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .default(100)
+      .optional()
+      .describe('반환할 최대 노트 수'),
+    sortBy: z
+      .enum(['created', 'updated', 'title'])
+      .default('updated')
+      .optional(),
+    sortOrder: z.enum(['asc', 'desc']).default('asc').optional(),
+  })
+  .strict();
+
+export type FindStaleNotesInput = z.infer<typeof FindStaleNotesInputSchema>;
+
+// get_organization_health - Get vault organization health metrics
+export const GetOrganizationHealthInputSchema = z
+  .object({
+    includeDetails: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('상세 분석 포함 여부'),
+    includeRecommendations: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('개선 권장사항 포함 여부'),
+  })
+  .strict();
+
+export type GetOrganizationHealthInput = z.infer<
+  typeof GetOrganizationHealthInputSchema
+>;
+
+// archive_notes - Archive multiple notes at once
+export const ArchiveNotesInputSchema = z
+  .object({
+    uids: z
+      .array(z.string().min(1, 'UID는 최소 1자 이상이어야 합니다.'))
+      .min(1, '최소 하나의 UID가 필요합니다.')
+      .max(100, '한 번에 최대 100개까지 아카이브할 수 있습니다.')
+      .describe('아카이브할 노트 UID 목록'),
+    dryRun: z
+      .boolean()
+      .default(false)
+      .optional()
+      .describe('true일 경우 실제 변경 없이 결과만 미리보기'),
+    confirm: z
+      .boolean()
+      .default(false)
+      .optional()
+      .describe('dryRun이 false일 때 실행 확인 (필수)'),
+    reason: z
+      .string()
+      .max(500, '이유는 최대 500자까지 허용됩니다.')
+      .optional()
+      .describe('아카이브 이유 (메타데이터에 기록)'),
+  })
+  .strict()
+  .refine(
+    data => {
+      // dryRun이 아닐 경우 confirm이 true여야 함
+      if (!data.dryRun && !data.confirm) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        '실제 아카이브를 수행하려면 confirm=true를 설정하거나 dryRun=true로 미리보기하세요.',
+    }
+  );
+
+export type ArchiveNotesInput = z.infer<typeof ArchiveNotesInputSchema>;
+
+// suggest_links - Suggest potential links for a note
+export const SuggestLinksInputSchema = z
+  .object({
+    uid: z
+      .string({
+        required_error: 'UID는 필수 입력값입니다.',
+      })
+      .min(1, 'UID는 최소 1자 이상이어야 합니다.')
+      .describe('링크를 제안받을 노트의 UID'),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .default(10)
+      .optional()
+      .describe('반환할 최대 제안 수'),
+    minScore: z
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.3)
+      .optional()
+      .describe('최소 관련성 점수 (0-1)'),
+    excludeExisting: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('이미 연결된 노트 제외'),
+  })
+  .strict();
+
+export type SuggestLinksInput = z.infer<typeof SuggestLinksInputSchema>;
+
 export const ToolNameSchema = z.enum([
   'search_memory',
   'create_note',
@@ -223,6 +381,12 @@ export const ToolNameSchema = z.enum([
   'get_vault_stats',
   'get_backlinks',
   'get_metrics',
+  // Organization tools
+  'find_orphan_notes',
+  'find_stale_notes',
+  'get_organization_health',
+  'archive_notes',
+  'suggest_links',
 ]);
 
 export type ToolName = z.infer<typeof ToolNameSchema>;
