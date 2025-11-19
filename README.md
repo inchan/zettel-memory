@@ -83,7 +83,9 @@ EOF
 
 ## 📚 Available Tools (v0.0.1)
 
-Zettel Memory provides 6 MCP tools for complete note management:
+Zettel Memory provides 14 MCP tools for complete note management:
+
+### Core CRUD Tools
 
 ### `create_note`
 Create a new Markdown note with Front Matter.
@@ -226,6 +228,19 @@ Delete a note permanently (requires explicit confirmation).
 
 ---
 
+### Analytics & Organization Tools
+
+- **`get_vault_stats`** - Get statistics about your vault (note count, categories, tags)
+- **`get_backlinks`** - Find all notes linking to a specific note
+- **`get_metrics`** - Get performance metrics (JSON or Prometheus format)
+- **`find_orphan_notes`** - Find notes without any incoming or outgoing links
+- **`find_stale_notes`** - Find notes that haven't been updated recently
+- **`get_organization_health`** - Get overall health score and recommendations
+- **`archive_notes`** - Batch archive old or unused notes
+- **`suggest_links`** - Get AI-powered link suggestions based on content similarity
+
+---
+
 ## 🗂️ Note Structure
 
 Each note follows this structure:
@@ -357,7 +372,7 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index
 - [x] Link analysis & backlinks
 - [x] CLI interface
 - [x] MCP server integration
-- [x] Test coverage: 64% (408 tests passing)
+- [x] Test coverage: 498 tests passing
 
 ### v0.1.0 (Next)
 - [ ] Comprehensive unit tests (50%+ coverage)

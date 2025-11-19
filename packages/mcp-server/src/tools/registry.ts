@@ -1468,8 +1468,7 @@ const findStaleNotesDefinition: ToolDefinition<
   typeof FindStaleNotesInputSchema
 > = {
   name: 'find_stale_notes',
-  description:
-    '지정된 기간 동안 업데이트되지 않은 오래된 노트를 찾습니다.',
+  description: '지정된 기간 동안 업데이트되지 않은 오래된 노트를 찾습니다.',
   schema: FindStaleNotesInputSchema,
   async handler(
     input: FindStaleNotesInput,
@@ -1668,7 +1667,9 @@ const getOrganizationHealthDefinition: ToolDefinition<
     const { includeDetails = true, includeRecommendations = true } = input;
 
     try {
-      context.logger.debug(`[tool:get_organization_health] 건강 상태 분석 시작`);
+      context.logger.debug(
+        `[tool:get_organization_health] 건강 상태 분석 시작`
+      );
 
       // 모든 노트 로드
       const allNotes = await loadAllNotes(context.vaultPath, {
@@ -1759,7 +1760,9 @@ const getOrganizationHealthDefinition: ToolDefinition<
       const stalePenalty = Math.min(staleRatio * 50, 30); // 최대 30점 감점
       const balanceBonus = Math.max(0, (categoryBalanceScore - 50) / 2); // 균형 보너스
 
-      let healthScore = Math.round(100 - orphanPenalty - stalePenalty + balanceBonus);
+      let healthScore = Math.round(
+        100 - orphanPenalty - stalePenalty + balanceBonus
+      );
       healthScore = Math.max(0, Math.min(100, healthScore));
 
       // 건강 등급
@@ -1788,9 +1791,7 @@ const getOrganizationHealthDefinition: ToolDefinition<
             `⏰ 30일 이상 미업데이트 노트가 ${staleCount}개 (${Math.round(staleRatio * 100)}%) 있습니다. 검토가 필요합니다.`
           );
         } else if (staleRatio > 0.15) {
-          recommendations.push(
-            `📅 오래된 노트 ${staleCount}개를 검토하세요.`
-          );
+          recommendations.push(`📅 오래된 노트 ${staleCount}개를 검토하세요.`);
         }
 
         if (categoryBalanceScore < 50) {
@@ -1800,7 +1801,9 @@ const getOrganizationHealthDefinition: ToolDefinition<
         }
 
         if (recommendations.length === 0) {
-          recommendations.push(`✅ 볼트가 잘 정리되어 있습니다! 계속 유지하세요.`);
+          recommendations.push(
+            `✅ 볼트가 잘 정리되어 있습니다! 계속 유지하세요.`
+          );
         }
       }
 
@@ -1821,7 +1824,10 @@ const getOrganizationHealthDefinition: ToolDefinition<
 ### 카테고리 분포
 ${Object.entries(categoryStats)
   .sort(([, a], [, b]) => b - a)
-  .map(([cat, count]) => `- ${cat}: ${count}개 (${Math.round((count / totalNotes) * 100)}%)`)
+  .map(
+    ([cat, count]) =>
+      `- ${cat}: ${count}개 (${Math.round((count / totalNotes) * 100)}%)`
+  )
   .join('\n')}`;
       }
 
@@ -1832,12 +1838,15 @@ ${Object.entries(categoryStats)
 ${recommendations.map(r => `- ${r}`).join('\n')}`;
       }
 
-      context.logger.info(`[tool:get_organization_health] 건강 상태 분석 완료`, {
-        healthScore,
-        totalNotes,
-        orphanCount,
-        staleCount,
-      });
+      context.logger.info(
+        `[tool:get_organization_health] 건강 상태 분석 완료`,
+        {
+          healthScore,
+          totalNotes,
+          orphanCount,
+          staleCount,
+        }
+      );
 
       return {
         content: [{ type: 'text', text: responseText }],
@@ -1972,7 +1981,9 @@ const archiveNotesDefinition: ToolDefinition<typeof ArchiveNotesInputSchema> = {
       // 결과 집계
       const successCount = results.filter(r => r.status === 'success').length;
       const skippedCount = results.filter(r => r.status === 'skipped').length;
-      const notFoundCount = results.filter(r => r.status === 'not_found').length;
+      const notFoundCount = results.filter(
+        r => r.status === 'not_found'
+      ).length;
 
       // 응답 구성
       let responseText = `## 노트 아카이브 ${dryRun ? '(미리보기)' : '완료'}
@@ -2010,12 +2021,15 @@ const archiveNotesDefinition: ToolDefinition<typeof ArchiveNotesInputSchema> = {
 💡 실제로 아카이브하려면 \`dryRun: false\`와 \`confirm: true\`를 설정하세요.`;
       }
 
-      context.logger.info(`[tool:archive_notes] 아카이브 ${dryRun ? '미리보기' : '완료'}`, {
-        total: uids.length,
-        success: successCount,
-        skipped: skippedCount,
-        notFound: notFoundCount,
-      });
+      context.logger.info(
+        `[tool:archive_notes] 아카이브 ${dryRun ? '미리보기' : '완료'}`,
+        {
+          total: uids.length,
+          success: successCount,
+          skipped: skippedCount,
+          notFound: notFoundCount,
+        }
+      );
 
       return {
         content: [{ type: 'text', text: responseText }],
@@ -2095,8 +2109,11 @@ const suggestLinksDefinition: ToolDefinition<typeof SuggestLinksInputSchema> = {
         const targetTags = new Set(targetNote.frontMatter.tags || []);
         const noteTags = note.frontMatter.tags || [];
         if (targetTags.size > 0 && noteTags.length > 0) {
-          const commonTags = noteTags.filter((t: string) => targetTags.has(t)).length;
-          const tagScore = commonTags / Math.max(targetTags.size, noteTags.length);
+          const commonTags = noteTags.filter((t: string) =>
+            targetTags.has(t)
+          ).length;
+          const tagScore =
+            commonTags / Math.max(targetTags.size, noteTags.length);
           score += tagScore * 0.4;
         }
 
@@ -2129,7 +2146,9 @@ const suggestLinksDefinition: ToolDefinition<typeof SuggestLinksInputSchema> = {
           .filter((w: string) => w.length > 3);
 
         if (targetWords.size > 0 && noteWords.length > 0) {
-          const commonWords = noteWords.filter((w: string) => targetWords.has(w)).length;
+          const commonWords = noteWords.filter((w: string) =>
+            targetWords.has(w)
+          ).length;
           const wordScore = Math.min(commonWords / 10, 1);
           score += wordScore * 0.2;
         }

@@ -6,6 +6,6 @@
     "composite": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "__tests__", "node_modules"],
+  "exclude": ["dist", "node_modules", "src/**/__tests__"],
   "references": []
 }

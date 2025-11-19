@@ -196,7 +196,7 @@ npm run build --workspace=@inchankang/zettel-memory
 - Zero data loss
 
 ### Testing
-- Test coverage target 80%+ (current: 64% with 408 tests)
+- Test coverage target 80%+ (current: 498 tests)
 - Unit/integration/load testing
 
 ---
