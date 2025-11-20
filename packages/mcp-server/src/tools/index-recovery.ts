@@ -6,6 +6,7 @@
 import type { ToolExecutionContext } from './types.js';
 import type { IndexSearchEngine } from '@inchankang/zettel-memory-index-search';
 import { loadNote } from '@inchankang/zettel-memory-storage-md';
+import { RECOVERY_QUEUE_DEFAULTS } from '@inchankang/zettel-memory-common';
 
 export type IndexOperation = 'index' | 'update' | 'delete';
 
@@ -24,8 +25,8 @@ export interface RecoveryQueueEntry {
 export class IndexRecoveryQueue {
   private queue: RecoveryQueueEntry[] = [];
   private isProcessing = false;
-  private maxRetries = 5;
-  private baseDelayMs = 1000; // 1초
+  private maxRetries = RECOVERY_QUEUE_DEFAULTS.MAX_RETRIES;
+  private baseDelayMs = RECOVERY_QUEUE_DEFAULTS.BASE_DELAY_MS;
   private workerInterval: NodeJS.Timeout | null = null;
 
   constructor(
@@ -33,7 +34,7 @@ export class IndexRecoveryQueue {
       ctx: ToolExecutionContext
     ) => IndexSearchEngine,
     private readonly context: ToolExecutionContext
-  ) {}
+  ) { }
 
   /**
    * 실패한 인덱스 작업을 큐에 추가
@@ -70,7 +71,7 @@ export class IndexRecoveryQueue {
 
     this.workerInterval = setInterval(() => {
       void this.processQueue();
-    }, 2000); // 2초마다 확인
+    }, RECOVERY_QUEUE_DEFAULTS.WORKER_INTERVAL_MS);
   }
 
   /**

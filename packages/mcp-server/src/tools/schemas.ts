@@ -367,6 +367,27 @@ export const SuggestLinksInputSchema = z
 
 export type SuggestLinksInput = z.infer<typeof SuggestLinksInputSchema>;
 
+// organize_notes - Organize notes using Ollama
+export const OrganizeNotesInputSchema = z
+  .object({
+    dryRun: z
+      .boolean()
+      .default(true)
+      .optional()
+      .describe('true일 경우 실제 변경 없이 제안 사항만 반환'),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .default(10)
+      .optional()
+      .describe('분석할 최대 노트 수'),
+  })
+  .strict();
+
+export type OrganizeNotesInput = z.infer<typeof OrganizeNotesInputSchema>;
+
 export const ToolNameSchema = z.enum([
   'search_memory',
   'create_note',
@@ -383,6 +404,7 @@ export const ToolNameSchema = z.enum([
   'get_organization_health',
   'archive_notes',
   'suggest_links',
+  'organize_notes',
 ]);
 
 export type ToolName = z.infer<typeof ToolNameSchema>;

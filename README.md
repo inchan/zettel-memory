@@ -13,7 +13,8 @@
 - 📝 **Markdown + YAML Front Matter** - 표준 포맷으로 노트 저장
 - 🗂️ **PARA Organization** - Projects/Areas/Resources/Archives 분류
 - 🔗 **Zettelkasten Linking** - UID 기반 노트 연결 및 백링크
-- 🔍 **SQLite FTS5 Search** - 빠른 전문 검색 ✓
+- 🔍 **SQLite FTS5 Search** - 빠른 전문 검색 (P95 < 1ms)
+- 🤖 **AI-Powered Organization** - Ollama 통합으로 자동 노트 정리
 - 🏠 **Local-first** - 모든 데이터를 로컬에 안전하게 보관
 - 🔐 **Privacy** - 네트워크 송출 없음, 원자적 쓰기
 
@@ -383,10 +384,15 @@ node packages/mcp-server/dist/cli.js healthcheck --vault /tmp/test-vault --index
 
 ### v1.0.0 (Future)
 - [ ] Vector embedding search
-- [ ] Olima context-aware ranking engine
+- [ ] **Olima Context-Aware Ranking Engine** ⚠️ _Planned Feature_
+  - Semantic similarity-based note recommendations
+  - Session context-aware re-ranking
+  - Automatic link suggestions based on content analysis
 - [ ] Advanced link graph queries
 - [ ] Docker image
 - [ ] Production-ready CI/CD
+
+> **Note on Olima**: The "Olima" context-aware ranking engine is a planned feature for future releases. Currently, the project uses **Ollama** (local LLM platform) for AI-powered note organization via the `organize_notes` tool.
 
 ## 🤝 Contributing
 

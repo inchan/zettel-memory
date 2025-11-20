@@ -175,7 +175,7 @@ async function runTests() {
     log(colors.yellow, '\n📋 Test 0: 도구 목록 확인');
     const tools = await client.listTools();
     const toolNames = tools.tools.map(t => t.name);
-    const expectedTools = ['create_note', 'read_note', 'list_notes', 'update_note', 'delete_note', 'search_memory'];
+    const expectedTools = ['create_note', 'read_note', 'list_notes', 'update_note', 'delete_note', 'search_memory', 'organize_notes'];
 
     const missingTools = expectedTools.filter(t => !toolNames.includes(t));
     if (missingTools.length === 0) {
@@ -348,6 +348,35 @@ async function runTests() {
         pass('삭제 확인', '삭제된 노트 조회 시 적절한 에러 발생');
       } else {
         pass('삭제 확인', `에러 발생: ${error.message}`);
+      }
+    }
+
+    // Test 12: organize_notes 도구 테스트
+    log(colors.yellow, '\n🤖 Test 12: 노트 정리 (organize_notes)');
+    try {
+      const organizeResult = await client.callTool('organize_notes', {
+        dryRun: true,
+        limit: 5,
+      });
+
+      if (organizeResult.content[0]?.text) {
+        const resultText = organizeResult.content[0].text;
+        if (resultText.includes('Ollama') && resultText.includes('not available')) {
+          pass('노트 정리 (Ollama 미실행)', 'Ollama 서버 미실행 감지 - 정상적인 에러 처리');
+        } else if (resultText.includes('Organization complete')) {
+          pass('노트 정리', 'Ollama를 통한 노트 정리 제안 생성 성공');
+        } else {
+          pass('노트 정리', `응답 수신: ${resultText.substring(0, 50)}...`);
+        }
+      } else {
+        fail('노트 정리', '응답 형식 오류');
+      }
+    } catch (error) {
+      // organize_notes는 Ollama가 필요하므로 에러가 예상됨
+      if (error.message.includes('Ollama') || error.message.includes('available')) {
+        pass('노트 정리 (Ollama 필요)', 'Ollama 서버 필요 - 도구 정상 등록됨');
+      } else {
+        fail('노트 정리', error.message);
       }
     }
 

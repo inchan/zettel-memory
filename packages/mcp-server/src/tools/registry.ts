@@ -56,7 +56,10 @@ import {
   type GetOrganizationHealthInput,
   type ArchiveNotesInput,
   type SuggestLinksInput,
+  type OrganizeNotesInput,
+  OrganizeNotesInputSchema,
 } from './schemas.js';
+import { organizeNotes } from './organize-notes.js';
 import {
   type ToolDefinition,
   type ToolExecutionContext,
@@ -971,148 +974,145 @@ const deleteNoteDefinition: ToolDefinition<typeof DeleteNoteInputSchema> = {
  * Tool: get_vault_stats
  */
 const getVaultStatsDefinition: ToolDefinition<typeof GetVaultStatsInputSchema> =
-  {
-    name: 'get_vault_stats',
-    description:
-      '볼트의 통계 정보를 조회합니다. 노트 수, 카테고리별 분포, 태그 사용 현황, 링크 통계 등을 제공합니다.',
-    schema: GetVaultStatsInputSchema,
-    async handler(
-      input: GetVaultStatsInput,
-      context: ToolExecutionContext
-    ): Promise<ToolResult> {
-      const {
-        includeCategories = true,
-        includeTagStats = true,
-        includeLinkStats = true,
-      } = input;
+{
+  name: 'get_vault_stats',
+  description:
+    '볼트의 통계 정보를 조회합니다. 노트 수, 카테고리별 분포, 태그 사용 현황, 링크 통계 등을 제공합니다.',
+  schema: GetVaultStatsInputSchema,
+  async handler(
+    input: GetVaultStatsInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    const {
+      includeCategories = true,
+      includeTagStats = true,
+      includeLinkStats = true,
+    } = input;
 
-      try {
-        context.logger.debug(`[tool:get_vault_stats] 통계 조회 시작`);
+    try {
+      context.logger.debug(`[tool:get_vault_stats] 통계 조회 시작`);
 
-        const notes = await loadAllNotes(context.vaultPath);
+      const notes = await loadAllNotes(context.vaultPath);
 
-        // 기본 통계
-        const totalNotes = notes.length;
-        const totalWords = notes.reduce(
-          (sum, note) => sum + note.content.split(/\s+/).length,
+      // 기본 통계
+      const totalNotes = notes.length;
+      const totalWords = notes.reduce(
+        (sum, note) => sum + note.content.split(/\s+/).length,
+        0
+      );
+
+      // 카테고리별 통계
+      const categoryStats: Record<string, number> = {};
+      if (includeCategories) {
+        for (const note of notes) {
+          const category = note.frontMatter.category || 'Uncategorized';
+          categoryStats[category] = (categoryStats[category] || 0) + 1;
+        }
+      }
+
+      // 태그 통계
+      const tagStats: Record<string, number> = {};
+      if (includeTagStats) {
+        for (const note of notes) {
+          for (const tag of note.frontMatter.tags) {
+            tagStats[tag] = (tagStats[tag] || 0) + 1;
+          }
+        }
+      }
+
+      // 링크 통계
+      let linkStats = {};
+      if (includeLinkStats) {
+        const totalLinks = notes.reduce(
+          (sum, note) => sum + note.frontMatter.links.length,
           0
         );
+        const orphanNotes = notes.filter(
+          note =>
+            note.frontMatter.links.length === 0 &&
+            !notes.some(other =>
+              other.frontMatter.links.includes(note.frontMatter.id)
+            )
+        ).length;
 
-        // 카테고리별 통계
-        const categoryStats: Record<string, number> = {};
-        if (includeCategories) {
-          for (const note of notes) {
-            const category = note.frontMatter.category || 'Uncategorized';
-            categoryStats[category] = (categoryStats[category] || 0) + 1;
-          }
-        }
-
-        // 태그 통계
-        const tagStats: Record<string, number> = {};
-        if (includeTagStats) {
-          for (const note of notes) {
-            for (const tag of note.frontMatter.tags) {
-              tagStats[tag] = (tagStats[tag] || 0) + 1;
-            }
-          }
-        }
-
-        // 링크 통계
-        let linkStats = {};
-        if (includeLinkStats) {
-          const totalLinks = notes.reduce(
-            (sum, note) => sum + note.frontMatter.links.length,
-            0
-          );
-          const orphanNotes = notes.filter(
-            note =>
-              note.frontMatter.links.length === 0 &&
-              !notes.some(other =>
-                other.frontMatter.links.includes(note.frontMatter.id)
-              )
-          ).length;
-
-          linkStats = {
-            totalLinks,
-            orphanNotes,
-            avgLinksPerNote:
-              totalNotes > 0 ? (totalLinks / totalNotes).toFixed(2) : '0',
-          };
-        }
-
-        const stats = {
-          totalNotes,
-          totalWords,
-          avgWordsPerNote:
-            totalNotes > 0 ? Math.round(totalWords / totalNotes) : 0,
-          ...(includeCategories && { categoryStats }),
-          ...(includeTagStats && {
-            tagStats,
-            uniqueTags: Object.keys(tagStats).length,
-          }),
-          ...(includeLinkStats && { linkStats }),
+        linkStats = {
+          totalLinks,
+          orphanNotes,
+          avgLinksPerNote:
+            totalNotes > 0 ? (totalLinks / totalNotes).toFixed(2) : '0',
         };
+      }
 
-        context.logger.info(`[tool:get_vault_stats] 통계 조회 완료`, {
-          totalNotes,
-        });
+      const stats = {
+        totalNotes,
+        totalWords,
+        avgWordsPerNote:
+          totalNotes > 0 ? Math.round(totalWords / totalNotes) : 0,
+        ...(includeCategories && { categoryStats }),
+        ...(includeTagStats && {
+          tagStats,
+          uniqueTags: Object.keys(tagStats).length,
+        }),
+        ...(includeLinkStats && { linkStats }),
+      };
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `## 볼트 통계
+      context.logger.info(`[tool:get_vault_stats] 통계 조회 완료`, {
+        totalNotes,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `## 볼트 통계
 
 **총 노트 수**: ${totalNotes}개
 **총 단어 수**: ${totalWords.toLocaleString()}개
 **노트당 평균 단어**: ${stats.avgWordsPerNote}개
 
-${
-  includeCategories
-    ? `### 카테고리별 분포
+${includeCategories
+                ? `### 카테고리별 분포
 ${Object.entries(categoryStats)
-  .map(([k, v]) => `- ${k}: ${v}개`)
-  .join('\n')}`
-    : ''
-}
+                  .map(([k, v]) => `- ${k}: ${v}개`)
+                  .join('\n')}`
+                : ''
+              }
 
-${
-  includeTagStats
-    ? `### 태그 통계
+${includeTagStats
+                ? `### 태그 통계
 - 고유 태그: ${Object.keys(tagStats).length}개
 - 상위 태그: ${Object.entries(tagStats)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([k, v]) => `${k}(${v})`)
-        .join(', ')}`
-    : ''
-}
+                  .sort(([, a], [, b]) => b - a)
+                  .slice(0, 5)
+                  .map(([k, v]) => `${k}(${v})`)
+                  .join(', ')}`
+                : ''
+              }
 
-${
-  includeLinkStats
-    ? `### 링크 통계
+${includeLinkStats
+                ? `### 링크 통계
 - 총 링크: ${(linkStats as any).totalLinks}개
 - 고아 노트: ${(linkStats as any).orphanNotes}개
 - 노트당 평균 링크: ${(linkStats as any).avgLinksPerNote}개`
-    : ''
-}`,
-            },
-          ],
-          _meta: { metadata: stats },
-        };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        context.logger.error(`[tool:get_vault_stats] 통계 조회 실패`, {
-          error: errorMessage,
-        });
-        throw new MemoryMcpError(
-          ErrorCode.FILE_READ_ERROR,
-          `통계 조회 실패: ${errorMessage}`
-        );
-      }
-    },
-  };
+                : ''
+              }`,
+          },
+        ],
+        _meta: { metadata: stats },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      context.logger.error(`[tool:get_vault_stats] 통계 조회 실패`, {
+        error: errorMessage,
+      });
+      throw new MemoryMcpError(
+        ErrorCode.FILE_READ_ERROR,
+        `통계 조회 실패: ${errorMessage}`
+      );
+    }
+  },
+};
 
 /**
  * Tool: get_backlinks
@@ -1180,13 +1180,13 @@ const getBacklinksDefinition: ToolDefinition<typeof GetBacklinksInputSchema> = {
 **${backlinks.length}개의 노트가 이 노트를 참조합니다:**
 
 ${backlinks
-  .map(
-    bl => `### ${bl.title}
+                .map(
+                  bl => `### ${bl.title}
 - **UID**: ${bl.uid}
 - **카테고리**: ${bl.category}
 - **내용 미리보기**: ${bl.snippet}`
-  )
-  .join('\n\n')}`,
+                )
+                .join('\n\n')}`,
           },
         ],
         _meta: { metadata: { uid, backlinks, count: backlinks.length } },
@@ -1823,12 +1823,12 @@ const getOrganizationHealthDefinition: ToolDefinition<
 
 ### 카테고리 분포
 ${Object.entries(categoryStats)
-  .sort(([, a], [, b]) => b - a)
-  .map(
-    ([cat, count]) =>
-      `- ${cat}: ${count}개 (${Math.round((count / totalNotes) * 100)}%)`
-  )
-  .join('\n')}`;
+            .sort(([, a], [, b]) => b - a)
+            .map(
+              ([cat, count]) =>
+                `- ${cat}: ${count}개 (${Math.round((count / totalNotes) * 100)}%)`
+            )
+            .join('\n')}`;
       }
 
       if (includeRecommendations && recommendations.length > 0) {
@@ -2263,6 +2263,22 @@ ${suggestionsList.join('\n\n')}
 };
 
 /**
+ * Tool: organize_notes
+ */
+const organizeNotesDefinition: ToolDefinition<typeof OrganizeNotesInputSchema> = {
+  name: 'organize_notes',
+  description:
+    'Ollama를 사용하여 노트를 분석하고 정리(링크, 태그, 아카이브) 제안을 생성합니다.',
+  schema: OrganizeNotesInputSchema,
+  async handler(
+    input: OrganizeNotesInput,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    return organizeNotes(input, context);
+  },
+};
+
+/**
  * Tool Map (확장: 14 tools)
  */
 type RegisteredTool =
@@ -2279,7 +2295,8 @@ type RegisteredTool =
   | typeof findStaleNotesDefinition
   | typeof getOrganizationHealthDefinition
   | typeof archiveNotesDefinition
-  | typeof suggestLinksDefinition;
+  | typeof suggestLinksDefinition
+  | typeof organizeNotesDefinition;
 
 const toolMap: Record<ToolName, RegisteredTool> = {
   search_memory: searchMemoryDefinition,
@@ -2297,6 +2314,7 @@ const toolMap: Record<ToolName, RegisteredTool> = {
   get_organization_health: getOrganizationHealthDefinition,
   archive_notes: archiveNotesDefinition,
   suggest_links: suggestLinksDefinition,
+  organize_notes: organizeNotesDefinition,
 };
 
 const toolDefinitions: RegisteredTool[] = [
@@ -2315,6 +2333,7 @@ const toolDefinitions: RegisteredTool[] = [
   getOrganizationHealthDefinition,
   archiveNotesDefinition,
   suggestLinksDefinition,
+  organizeNotesDefinition,
 ];
 
 function toJsonSchema(definition: RegisteredTool): JsonSchema {

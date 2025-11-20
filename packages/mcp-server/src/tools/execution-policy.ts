@@ -19,7 +19,7 @@ export interface ExecutionPolicyOptions {
 
 export const DEFAULT_EXECUTION_POLICY: ExecutionPolicyOptions = {
   maxRetries: 2,
-  timeoutMs: 5_000,
+  timeoutMs: 30_000, // Ollama 응답을 위해 30초로 증가
 };
 
 async function withTimeout<T>(
